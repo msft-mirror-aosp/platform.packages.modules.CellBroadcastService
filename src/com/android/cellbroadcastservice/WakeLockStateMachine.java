@@ -20,9 +20,9 @@ import android.annotation.UnsupportedAppUsage;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import com.android.internal.util.State;
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link #quit}.
  */
 public abstract class WakeLockStateMachine extends StateMachine {
-    protected static final boolean DBG = Build.IS_DEBUGGABLE;
+    protected static final boolean DBG = SystemProperties.getInt("ro.debuggable", 0) == 1;
 
     private final PowerManager.WakeLock mWakeLock;
 
@@ -50,6 +50,9 @@ public abstract class WakeLockStateMachine extends StateMachine {
 
     /** Release wakelock after a short timeout when returning to idle state. */
     static final int EVENT_RELEASE_WAKE_LOCK = 3;
+
+    /** Broadcast not required due to geo-fencing check */
+    static final int EVENT_BROADCAST_NOT_REQUIRED = 4;
 
     @UnsupportedAppUsage
     protected Context mContext;
@@ -123,7 +126,7 @@ public abstract class WakeLockStateMachine extends StateMachine {
             switch (msg.what) {
                 default: {
                     String errorText = "processMessage: unhandled message type " + msg.what;
-                    if (Build.IS_DEBUGGABLE) {
+                    if (DBG) {
                         throw new RuntimeException(errorText);
                     } else {
                         loge(errorText);
@@ -148,13 +151,14 @@ public abstract class WakeLockStateMachine extends StateMachine {
         @Override
         public void exit() {
             mWakeLock.acquire();
-            if (DBG) log("acquired wakelock, leaving Idle state");
+            if (DBG) log("Idle: acquired wakelock, leaving Idle state");
         }
 
         @Override
         public boolean processMessage(Message msg) {
             switch (msg.what) {
                 case EVENT_NEW_SMS_MESSAGE:
+                    log("Idle: new cell broadcast message");
                     // transition to waiting state if we sent a broadcast
                     if (handleSmsMessage(msg)) {
                         transitionTo(mWaitingState);
@@ -162,9 +166,12 @@ public abstract class WakeLockStateMachine extends StateMachine {
                     return HANDLED;
 
                 case EVENT_RELEASE_WAKE_LOCK:
+                    log("Idle: release wakelock");
                     releaseWakeLock();
                     return HANDLED;
-
+                case EVENT_BROADCAST_NOT_REQUIRED:
+                    log("Idle: broadcast not required");
+                    return HANDLED;
                 default:
                     return NOT_HANDLED;
             }
@@ -180,19 +187,25 @@ public abstract class WakeLockStateMachine extends StateMachine {
         public boolean processMessage(Message msg) {
             switch (msg.what) {
                 case EVENT_NEW_SMS_MESSAGE:
-                    log("deferring message until return to idle");
+                    log("Waiting: deferring message until return to idle");
                     deferMessage(msg);
                     return HANDLED;
 
                 case EVENT_BROADCAST_COMPLETE:
-                    log("broadcast complete, returning to idle");
+                    log("Waiting: broadcast complete, returning to idle");
                     transitionTo(mIdleState);
                     return HANDLED;
 
                 case EVENT_RELEASE_WAKE_LOCK:
+                    log("Waiting: release wakelock");
                     releaseWakeLock();
                     return HANDLED;
-
+                case EVENT_BROADCAST_NOT_REQUIRED:
+                    log("Waiting: broadcast not required");
+                    if (mReceiverCount.get() == 0) {
+                        transitionTo(mIdleState);
+                    }
+                    return HANDLED;
                 default:
                     return NOT_HANDLED;
             }

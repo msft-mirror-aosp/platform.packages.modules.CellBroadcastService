@@ -25,17 +25,18 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Message;
 import android.provider.Telephony.CellBroadcasts;
+import android.telephony.CbGeoUtils.Geometry;
+import android.telephony.CellIdentity;
+import android.telephony.CellIdentityGsm;
 import android.telephony.CellInfo;
-import android.telephony.CellLocation;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
 import android.telephony.TelephonyManager;
-import android.telephony.gsm.GsmCellLocation;
 import android.text.format.DateUtils;
+import android.util.Pair;
 
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage;
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage.CellBroadcastIdentity;
-import com.android.internal.telephony.CbGeoUtils.Geometry;
 
 import dalvik.annotation.compat.UnsupportedAppUsage;
 
@@ -110,7 +111,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
         ContentResolver resolver = mContext.getContentResolver();
         for (CellBroadcastIdentity identity : geoFencingTriggerMessage.cbIdentifiers) {
-            try (Cursor cursor = resolver.query(CELL_BROADCAST_URI,
+            try (Cursor cursor = resolver.query(CellBroadcasts.CONTENT_URI,
                     CellBroadcasts.QUERY_COLUMNS_FWK,
                     where,
                     new String[] { Integer.toString(identity.messageIdentifier),
@@ -120,7 +121,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 if (cursor != null) {
                     while (cursor.moveToNext()) {
                         cbMessages.add(SmsCbMessage.createFromCursor(cursor));
-                        cbMessageUris.add(ContentUris.withAppendedId(CELL_BROADCAST_URI,
+                        cbMessageUris.add(ContentUris.withAppendedId(CellBroadcasts.CONTENT_URI,
                                 cursor.getInt(cursor.getColumnIndex(CellBroadcasts._ID))));
                     }
                 }
@@ -141,7 +142,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         // cell broadcasts.
         int maximumWaitTimeSec = 0;
         for (SmsCbMessage msg : cbMessages) {
-            maximumWaitTimeSec = Math.max(maximumWaitTimeSec, msg.getMaximumWaitingTime());
+            maximumWaitTimeSec = Math.max(maximumWaitTimeSec, msg.getMaximumWaitingDuration());
         }
 
         if (DBG) {
@@ -159,7 +160,9 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         requestLocationUpdate(location -> {
             if (location == null) {
                 // If the location is not available, broadcast the messages directly.
-                broadcastMessage(cbMessages, cbMessageUris, slotIndex);
+                for (int i = 0; i < cbMessages.size(); i++) {
+                    broadcastMessage(cbMessages.get(i), cbMessageUris.get(i), slotIndex);
+                }
             } else {
                 for (int i = 0; i < cbMessages.size(); i++) {
                     List<Geometry> broadcastArea = !commonBroadcastArea.isEmpty()
@@ -200,6 +203,9 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             } else {
                 SmsCbMessage cbMessage = handleGsmBroadcastSms(header, pdu, slotIndex);
                 if (cbMessage != null) {
+                    if (isDuplicate(cbMessage)) {
+                        return false;
+                    }
                     handleBroadcastSms(cbMessage);
                     return true;
                 }
@@ -209,22 +215,21 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         return super.handleSmsMessage(message);
     }
 
-    // return the cell location from the first returned cell info, prioritizing GSM
-    private CellLocation getCellLocation() {
+    // return the GSM cell location from the first GSM cell info
+    private Pair<Integer, Integer> getGsmLacAndCid() {
         TelephonyManager tm =
                 (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
         List<CellInfo> infos = tm.getAllCellInfo();
         for (CellInfo info : infos) {
-            CellLocation cl = info.getCellIdentity().asCellLocation();
-            if (cl instanceof GsmCellLocation) {
-                return cl;
+            CellIdentity ci = info.getCellIdentity();
+            if (ci instanceof CellIdentityGsm) {
+                CellIdentityGsm ciGsm = (CellIdentityGsm) ci;
+                int lac = ciGsm.getLac() != CellInfo.UNAVAILABLE ? ciGsm.getLac() : -1;
+                int cid = ciGsm.getCid() != CellInfo.UNAVAILABLE ? ciGsm.getCid() : -1;
+                return Pair.create(lac, cid);
             }
         }
-        // If no GSM, return first in list
-        if (infos != null && !infos.isEmpty() && infos.get(0) != null) {
-            return infos.get(0).getCellIdentity().asCellLocation();
-        }
-        return CellLocation.getEmpty();
+        return null;
     }
 
 
@@ -254,18 +259,18 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             if (VDBG) log("header=" + header);
             TelephonyManager tm =
                     (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+            tm.createForSubscriptionId(getSubIdForPhone(slotIndex));
             // TODO make a systemAPI for getNetworkOperatorForSlotIndex
-            String plmn = tm.getNetworkOperatorForPhone(slotIndex);
+            String plmn = tm.getSimOperator();
             int lac = -1;
             int cid = -1;
-            CellLocation cl = getCellLocation();
-            // Check if cell location is GsmCellLocation.  This is required to support
+            Pair<Integer, Integer> lacAndCid = getGsmLacAndCid();
+            // Check if GSM lac and cid are available. This is required to support
             // dual-mode devices such as CDMA/LTE devices that require support for
             // both 3GPP and 3GPP2 format messages
-            if (cl instanceof GsmCellLocation) {
-                GsmCellLocation cellLocation = (GsmCellLocation) cl;
-                lac = cellLocation.getLac();
-                cid = cellLocation.getCid();
+            if (lacAndCid != null) {
+                lac = lacAndCid.first;
+                cid = lacAndCid.second;
             }
 
             SmsCbLocation location;
