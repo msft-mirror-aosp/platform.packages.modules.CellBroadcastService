@@ -16,14 +16,14 @@
 
 package com.android.cellbroadcastservice;
 
-import android.annotation.UnsupportedAppUsage;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemProperties;
-import android.util.Log;
+import android.telephony.Rlog;
 
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
@@ -54,7 +54,6 @@ public abstract class WakeLockStateMachine extends StateMachine {
     /** Broadcast not required due to geo-fencing check */
     static final int EVENT_BROADCAST_NOT_REQUIRED = 4;
 
-    @UnsupportedAppUsage
     protected Context mContext;
 
     protected AtomicInteger mReceiverCount = new AtomicInteger(0);
@@ -63,12 +62,11 @@ public abstract class WakeLockStateMachine extends StateMachine {
     private static final int WAKE_LOCK_TIMEOUT = 3000;
 
     private final DefaultState mDefaultState = new DefaultState();
-    @UnsupportedAppUsage
     private final IdleState mIdleState = new IdleState();
     private final WaitingState mWaitingState = new WaitingState();
 
-    protected WakeLockStateMachine(String debugTag, Context context) {
-        super(debugTag);
+    protected WakeLockStateMachine(String debugTag, Context context, Looper looper) {
+        super(debugTag, looper);
 
         mContext = context;
 
@@ -235,10 +233,9 @@ public abstract class WakeLockStateMachine extends StateMachine {
      * Log with debug level.
      * @param s the string to log
      */
-    @UnsupportedAppUsage
     @Override
     protected void log(String s) {
-        Log.d(getName(), s);
+        Rlog.d(getName(), s);
     }
 
     /**
@@ -247,7 +244,7 @@ public abstract class WakeLockStateMachine extends StateMachine {
      */
     @Override
     protected void loge(String s) {
-        Log.e(getName(), s);
+        Rlog.e(getName(), s);
     }
 
     /**
@@ -257,6 +254,6 @@ public abstract class WakeLockStateMachine extends StateMachine {
      */
     @Override
     protected void loge(String s, Throwable e) {
-        Log.e(getName(), s, e);
+        Rlog.e(getName(), s, e);
     }
 }

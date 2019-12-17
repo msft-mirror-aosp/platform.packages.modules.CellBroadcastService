@@ -27,18 +27,18 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CbGeoUtils.LatLng;
+import android.telephony.Rlog;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
+import android.telephony.SmsMessage;
+import android.telephony.SubscriptionManager;
 import android.util.Pair;
-import android.util.Slog;
 
 import com.android.cellbroadcastservice.CbGeoUtils.Circle;
 import com.android.cellbroadcastservice.CbGeoUtils.Polygon;
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage.CellBroadcastIdentity;
 import com.android.cellbroadcastservice.SmsCbHeader.DataCodingScheme;
-import com.android.internal.R;
-import com.android.internal.telephony.GsmAlphabet;
-import com.android.internal.telephony.SmsConstants;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -67,7 +67,8 @@ public class GsmSmsCbMessage {
      * @param category ETWS message category defined in SmsCbConstants
      * @return ETWS text message in string. Return an empty string if no match.
      */
-    private static String getEtwsPrimaryMessage(Context context, int category) {
+    @VisibleForTesting
+    public static String getEtwsPrimaryMessage(Context context, int category) {
         final Resources r = context.getResources();
         switch (category) {
             case ETWS_WARNING_TYPE_EARTHQUAKE:
@@ -93,6 +94,14 @@ public class GsmSmsCbMessage {
     public static SmsCbMessage createSmsCbMessage(Context context, SmsCbHeader header,
             SmsCbLocation location, byte[][] pdus, int slotIndex)
             throws IllegalArgumentException {
+        SubscriptionManager sm = (SubscriptionManager) context.getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        int subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+        int[] subIds = sm.getSubscriptionIds(slotIndex);
+        if (subIds != null && subIds.length > 0) {
+            subId = subIds[0];
+        }
+
         long receivedTimeMillis = System.currentTimeMillis();
         if (header.isEtwsPrimaryNotification()) {
             // ETSI TS 23.041 ETWS Primary Notification message
@@ -103,7 +112,7 @@ public class GsmSmsCbMessage {
                     header.getSerialNumber(), location, header.getServiceCategory(), null,
                     getEtwsPrimaryMessage(context, header.getEtwsInfo().getWarningType()),
                     SmsCbMessage.MESSAGE_PRIORITY_EMERGENCY, header.getEtwsInfo(),
-                    header.getCmasInfo(), 0, null /* geometries */, receivedTimeMillis, slotIndex);
+                    header.getCmasInfo(), 0, null, receivedTimeMillis, slotIndex, subId);
         } else if (header.isUmtsFormat()) {
             // UMTS format has only 1 PDU
             byte[] pdu = pdus[0];
@@ -129,7 +138,7 @@ public class GsmSmsCbMessage {
                 } catch (Exception ex) {
                     // Catch the exception here, the message will be considered as having no WAC
                     // information which means the message will be broadcasted directly.
-                    Slog.e(TAG, "Can't parse warning area coordinates, ex = " + ex.toString());
+                    Rlog.e(TAG, "Can't parse warning area coordinates, ex = " + ex.toString());
                 }
             }
 
@@ -137,7 +146,7 @@ public class GsmSmsCbMessage {
                     header.getGeographicalScope(), header.getSerialNumber(), location,
                     header.getServiceCategory(), language, body, priority,
                     header.getEtwsInfo(), header.getCmasInfo(), maximumWaitingTimeSec, geometries,
-                    receivedTimeMillis, slotIndex);
+                    receivedTimeMillis, slotIndex, subId);
         } else {
             String language = null;
             StringBuilder sb = new StringBuilder();
@@ -152,8 +161,8 @@ public class GsmSmsCbMessage {
             return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
                     header.getGeographicalScope(), header.getSerialNumber(), location,
                     header.getServiceCategory(), language, sb.toString(), priority,
-                    header.getEtwsInfo(), header.getCmasInfo(), 0, null /* geometries */,
-                    receivedTimeMillis, slotIndex);
+                    header.getEtwsInfo(), header.getCmasInfo(), 0, null, receivedTimeMillis,
+                    slotIndex, subId);
         }
     }
 
@@ -196,7 +205,7 @@ public class GsmSmsCbMessage {
             }
             return new GeoFencingTriggerMessage(type, cbIdentifiers);
         } catch (Exception ex) {
-            Slog.e(TAG, "create geo-fencing trigger failed, ex = " + ex.toString());
+            Rlog.e(TAG, "create geo-fencing trigger failed, ex = " + ex.toString());
             return null;
         }
     }
@@ -289,7 +298,8 @@ public class GsmSmsCbMessage {
      * @param pdu the PDU to decode
      * @return a pair of string containing the language and body of the message in order
      */
-    private static Pair<String, String> parseUmtsBody(SmsCbHeader header, byte[] pdu) {
+    private static Pair<String, String> parseUmtsBody(SmsCbHeader header,
+            byte[] pdu) {
         // Payload may contain multiple pages
         int nrPages = pdu[SmsCbHeader.PDU_HEADER_LENGTH];
         String language = header.getDataCodingSchemeStructedData().language;
@@ -328,7 +338,8 @@ public class GsmSmsCbMessage {
      * @param pdu the PDU to decode
      * @return a pair of string containing the language and body of the message in order
      */
-    private static Pair<String, String> parseGsmBody(SmsCbHeader header, byte[] pdu) {
+    private static Pair<String, String> parseGsmBody(SmsCbHeader header,
+            byte[] pdu) {
         // Payload is one single page
         int offset = SmsCbHeader.PDU_HEADER_LENGTH;
         int length = pdu.length - offset;
@@ -344,13 +355,13 @@ public class GsmSmsCbMessage {
      * @param dcs data coding scheme
      * @return a Pair of Strings containing the language and body of the message
      */
-    private static Pair<String, String> unpackBody(byte[] pdu, int offset, int length,
-            DataCodingScheme dcs) {
+    private static Pair<String, String> unpackBody(byte[] pdu, int offset,
+            int length, DataCodingScheme dcs) {
         String body = null;
 
         String language = dcs.language;
         switch (dcs.encoding) {
-            case SmsConstants.ENCODING_7BIT:
+            case SmsMessage.ENCODING_7BIT:
                 body = GsmAlphabet.gsm7BitPackedToString(pdu, offset, length * 8 / 7);
 
                 if (dcs.hasLanguageIndicator && body != null && body.length() > 2) {
@@ -361,7 +372,7 @@ public class GsmSmsCbMessage {
                 }
                 break;
 
-            case SmsConstants.ENCODING_16BIT:
+            case SmsMessage.ENCODING_16BIT:
                 if (dcs.hasLanguageIndicator && pdu.length >= offset + 2) {
                     // Language is two GSM characters.
                     // The actual body text is offset by 2 bytes.
@@ -488,7 +499,11 @@ public class GsmSmsCbMessage {
             return type == TYPE_ACTIVE_ALERT_SHARE_WAC;
         }
 
-        static final class CellBroadcastIdentity {
+        /**
+         * The GSM cell broadcast identity
+         */
+        @VisibleForTesting
+        public static final class CellBroadcastIdentity {
             public final int messageIdentifier;
             public final int serialNumber;
             CellBroadcastIdentity(int messageIdentifier, int serialNumber) {

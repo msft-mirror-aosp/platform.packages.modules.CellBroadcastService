@@ -16,8 +16,6 @@
 
 package com.android.cellbroadcastservice;
 
-import static android.provider.Settings.Secure.CMAS_ADDITIONAL_BROADCAST_PKG;
-
 import android.Manifest;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -40,23 +38,23 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
+import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
-import android.provider.Settings;
 import android.provider.Telephony;
 import android.provider.Telephony.CellBroadcasts;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CbGeoUtils.LatLng;
+import android.telephony.CellBroadcastIntents;
+import android.telephony.Rlog;
 import android.telephony.SmsCbMessage;
 import android.telephony.SubscriptionManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.util.LocalLog;
-import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.metrics.TelephonyMetrics;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -102,7 +100,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     public final LocationRequester mLocationRequester;
 
     /** Timestamp of last airplane mode on */
-    private long mLastAirplaneModeTime = 0;
+    protected long mLastAirplaneModeTime = 0;
 
     /** Resource cache */
     private final Map<Integer, Resources> mResourcesCache = new HashMap<>();
@@ -117,11 +115,12 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     private final Map<Integer, Integer> mServiceCategoryCrossRATMap;
 
     private CellBroadcastHandler(Context context) {
-        this("CellBroadcastHandler", context);
+        this("CellBroadcastHandler", context, Looper.myLooper());
     }
 
-    protected CellBroadcastHandler(String debugTag, Context context) {
-        super(debugTag, context);
+    @VisibleForTesting
+    public CellBroadcastHandler(String debugTag, Context context, Looper looper) {
+        super(debugTag, context, looper);
         mLocationRequester = new LocationRequester(
                 context,
                 (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE),
@@ -198,7 +197,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                                 boolean airplaneModeOn = intent.getBooleanExtra("state", false);
                                 if (airplaneModeOn) {
                                     mLastAirplaneModeTime = System.currentTimeMillis();
-                                    log("Airplane mode on. Reset duplicate detection.");
+                                    log("Airplane mode on.");
                                 }
                                 break;
                             case ACTION_DUPLICATE_DETECTION:
@@ -249,12 +248,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      */
     protected void handleBroadcastSms(SmsCbMessage message) {
         int slotIndex = message.getSlotIndex();
-        // Log Cellbroadcast msg received event
-        TelephonyMetrics metrics = TelephonyMetrics.getInstance();
-        metrics.writeNewCBSms(slotIndex, message.getMessageFormat(),
-                message.getMessagePriority(), message.isCmasMessage(), message.isEtwsMessage(),
-                message.getServiceCategory(), message.getSerialNumber(),
-                System.currentTimeMillis());
 
         // TODO: Database inserting can be time consuming, therefore this should be changed to
         // asynchronous.
@@ -318,18 +311,17 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         long expirationDuration = res.getInteger(R.integer.message_expiration_time);
         long dupCheckTime = System.currentTimeMillis() - expirationDuration;
 
-        // Some carriers require reset duplication detection after airplane mode.
-        if (res.getBoolean(R.bool.reset_duplicate_detection_on_airplane_mode)) {
+        // Some carriers require reset duplication detection after airplane mode or reboot.
+        if (res.getBoolean(R.bool.reset_on_power_cycle_or_airplane_mode)) {
             dupCheckTime = Long.max(dupCheckTime, mLastAirplaneModeTime);
+            dupCheckTime = Long.max(dupCheckTime,
+                    System.currentTimeMillis() - SystemClock.elapsedRealtime());
         }
 
         List<SmsCbMessage> cbMessages = new ArrayList<>();
 
         try (Cursor cursor = mContext.getContentResolver().query(CellBroadcasts.CONTENT_URI,
-                // TODO: QUERY_COLUMNS_FWK is a hidden API, since we are going to move
-                //  CellBroadcastProvider to this module we can define those COLUMNS in side
-                //  CellBroadcastProvider and reference from there.
-                CellBroadcasts.QUERY_COLUMNS_FWK,
+                CellBroadcastProvider.QUERY_COLUMNS,
                 where,
                 new String[] {Long.toString(dupCheckTime)},
                 null)) {
@@ -443,9 +435,9 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param phoneId the phoneId to use
      * @return the associated sub id
      */
-    protected int getSubIdForPhone(int phoneId) {
+    protected static int getSubIdForPhone(Context context, int phoneId) {
         SubscriptionManager subMan =
-                (SubscriptionManager) mContext.getSystemService(
+                (SubscriptionManager) context.getSystemService(
                         Context.TELEPHONY_SUBSCRIPTION_SERVICE);
         int[] subIds = subMan.getSubscriptionIds(phoneId);
         if (subIds != null) {
@@ -456,6 +448,19 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     }
 
     /**
+     * Put the phone ID and sub ID into an intent as extras.
+     */
+    public static void putPhoneIdAndSubIdExtra(Context context, Intent intent, int phoneId) {
+        int subId = getSubIdForPhone(context, phoneId);
+        if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            intent.putExtra("subscription", subId);
+            intent.putExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, subId);
+        }
+        intent.putExtra("phone", phoneId);
+        intent.putExtra(SubscriptionManager.EXTRA_SLOT_INDEX, phoneId);
+    }
+
+    /**
      * Broadcast the {@code message} to the applications.
      * @param message a message need to broadcast
      * @param messageUri message's uri
@@ -463,7 +468,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     protected void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
             int slotIndex) {
         String receiverPermission;
-        int appOp;
+        String appOp;
         String msg;
         Intent intent;
         if (message.isEmergencyMessage()) {
@@ -474,57 +479,57 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             //Emergency alerts need to be delivered with high priority
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             receiverPermission = Manifest.permission.RECEIVE_EMERGENCY_BROADCAST;
-            appOp = AppOpsManager.OP_RECEIVE_EMERGECY_SMS;
+            appOp = AppOpsManager.OPSTR_RECEIVE_EMERGENCY_BROADCAST;
 
             intent.putExtra(EXTRA_MESSAGE, message);
-            int subId = getSubIdForPhone(slotIndex);
-            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                intent.putExtra("subscription", subId);
-                intent.putExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, subId);
-            }
-            intent.putExtra("phone", slotIndex);
-            intent.putExtra(SubscriptionManager.EXTRA_SLOT_INDEX, slotIndex);
+            putPhoneIdAndSubIdExtra(mContext, intent, slotIndex);
 
             if (IS_DEBUGGABLE) {
                 // Send additional broadcast intent to the specified package. This is only for sl4a
                 // automation tests.
-                final String additionalPackage = Settings.Secure.getString(
-                        mContext.getContentResolver(), CMAS_ADDITIONAL_BROADCAST_PKG);
-                if (additionalPackage != null) {
+                String[] testPkgs = mContext.getResources().getStringArray(
+                        R.array.config_testCellBroadcastReceiverPkgs);
+                if (testPkgs != null) {
                     Intent additionalIntent = new Intent(intent);
-                    additionalIntent.setPackage(additionalPackage);
-                    mContext.sendOrderedBroadcastAsUser(additionalIntent, UserHandle.ALL,
-                            receiverPermission, appOp, null, getHandler(), Activity.RESULT_OK,
-                            null, null);
+                    for (String pkg : testPkgs) {
+                        additionalIntent.setPackage(pkg);
+                        mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
+                                additionalIntent, receiverPermission, appOp, null,
+                                getHandler(), Activity.RESULT_OK, null, null);
+                    }
                 }
             }
 
             String[] pkgs = mContext.getResources().getStringArray(
-                    com.android.internal.R.array.config_defaultCellBroadcastReceiverPkgs);
-            mReceiverCount.addAndGet(pkgs.length);
-            for (String pkg : pkgs) {
-                // Explicitly send the intent to all the configured cell broadcast receivers.
-                intent.setPackage(pkg);
-                mContext.sendOrderedBroadcastAsUser(intent, UserHandle.ALL, receiverPermission,
-                        appOp, null, mReceiver, getHandler(), Activity.RESULT_OK, null, null);
+                    R.array.config_defaultCellBroadcastReceiverPkgs);
+            if (pkgs != null) {
+                mReceiverCount.addAndGet(pkgs.length);
+                for (String pkg : pkgs) {
+                    // Explicitly send the intent to all the configured cell broadcast receivers.
+                    intent.setPackage(pkg);
+                    mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
+                            intent, receiverPermission, appOp, mReceiver, getHandler(),
+                            Activity.RESULT_OK, null, null);
+                }
             }
         } else {
             msg = "Dispatching SMS CB, SmsCbMessage is: " + message;
             log(msg);
             mLocalLog.log(msg);
-            intent = new Intent(Telephony.Sms.Intents.SMS_CB_RECEIVED_ACTION);
             // Send implicit intent since there are various 3rd party carrier apps listen to
             // this intent.
-            intent.addFlags(Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND);
+            intent = new Intent(Telephony.Sms.Intents.SMS_CB_RECEIVED_ACTION);
             receiverPermission = Manifest.permission.RECEIVE_SMS;
-            appOp = AppOpsManager.OP_RECEIVE_SMS;
+            appOp = AppOpsManager.OPSTR_RECEIVE_SMS;
 
             intent.putExtra(EXTRA_MESSAGE, message);
-            SubscriptionManager.putPhoneIdAndSubIdExtra(intent, slotIndex);
+            putPhoneIdAndSubIdExtra(mContext, intent, slotIndex);
 
             mReceiverCount.incrementAndGet();
-            mContext.sendOrderedBroadcastAsUser(intent, UserHandle.ALL, receiverPermission,
-                    appOp, null, mReceiver, getHandler(), Activity.RESULT_OK, null, null);
+            CellBroadcastIntents.sendOrderedBroadcastForBackgroundReceivers(
+                    mContext, UserHandle.ALL, intent,
+                    receiverPermission, appOp, mReceiver, getHandler(), Activity.RESULT_OK,
+                    null, null);
         }
 
         if (messageUri != null) {
@@ -638,10 +643,10 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
 
         private void requestLocationUpdateInternal(@NonNull LocationUpdateCallback callback,
                 int maximumWaitTimeSec) {
-            if (DBG) Log.d(TAG, "requestLocationUpdate");
+            if (DBG) Rlog.d(TAG, "requestLocationUpdate");
             if (!isLocationServiceAvailable()) {
                 if (DBG) {
-                    Log.d(TAG, "Can't request location update because of no location permission");
+                    Rlog.d(TAG, "Can't request location update because of no location permission");
                 }
                 callback.onLocationUpdate(null);
                 return;
@@ -706,14 +711,14 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             public void handleMessage(Message msg) {
                 switch (msg.what) {
                     case EVENT_LOCATION_REQUEST_TIMEOUT:
-                        if (DBG) Log.d(TAG, "location request timeout");
+                        if (DBG) Rlog.d(TAG, "location request timeout");
                         onLocationUpdate(null);
                         break;
                     case EVENT_REQUEST_LOCATION_UPDATE:
                         requestLocationUpdateInternal((LocationUpdateCallback) msg.obj, msg.arg1);
                         break;
                     default:
-                        Log.e(TAG, "Unsupported message type " + msg.what);
+                        Rlog.e(TAG, "Unsupported message type " + msg.what);
                 }
             }
         }

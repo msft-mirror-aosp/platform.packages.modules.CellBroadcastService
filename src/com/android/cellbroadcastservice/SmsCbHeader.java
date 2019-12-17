@@ -18,10 +18,7 @@ package com.android.cellbroadcastservice;
 
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbEtwsInfo;
-
-import com.android.internal.telephony.SmsConstants;
-
-import dalvik.annotation.compat.UnsupportedAppUsage;
+import android.telephony.SmsMessage;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -112,7 +109,6 @@ public class SmsCbHeader {
     private final int mSerialNumber;
 
     /** The Message Identifier in 3GPP is the same as the Service Category in CDMA. */
-    @UnsupportedAppUsage
     private final int mMessageIdentifier;
 
     private final int mDataCodingScheme;
@@ -131,7 +127,6 @@ public class SmsCbHeader {
     /** CMAS warning notification info. */
     private final SmsCbCmasInfo mCmasInfo;
 
-    @UnsupportedAppUsage
     public SmsCbHeader(byte[] pdu) throws IllegalArgumentException {
         if (pdu == null || pdu.length < PDU_HEADER_LENGTH) {
             throw new IllegalArgumentException("Illegal PDU");
@@ -229,17 +224,14 @@ public class SmsCbHeader {
         }
     }
 
-    @UnsupportedAppUsage
     int getGeographicalScope() {
         return mGeographicalScope;
     }
 
-    @UnsupportedAppUsage
     int getSerialNumber() {
         return mSerialNumber;
     }
 
-    @UnsupportedAppUsage
     int getServiceCategory() {
         return mMessageIdentifier;
     }
@@ -252,12 +244,10 @@ public class SmsCbHeader {
         return mDataCodingSchemeStructedData;
     }
 
-    @UnsupportedAppUsage
     int getPageIndex() {
         return mPageIndex;
     }
 
-    @UnsupportedAppUsage
     int getNumberOfPages() {
         return mNrOfPages;
     }
@@ -522,42 +512,42 @@ public class SmsCbHeader {
             // section 5.
             switch ((dataCodingScheme & 0xf0) >> 4) {
                 case 0x00:
-                    encoding = SmsConstants.ENCODING_7BIT;
+                    encoding = SmsMessage.ENCODING_7BIT;
                     language = LANGUAGE_CODES_GROUP_0[dataCodingScheme & 0x0f];
                     break;
 
                 case 0x01:
                     hasLanguageIndicator = true;
                     if ((dataCodingScheme & 0x0f) == 0x01) {
-                        encoding = SmsConstants.ENCODING_16BIT;
+                        encoding = SmsMessage.ENCODING_16BIT;
                     } else {
-                        encoding = SmsConstants.ENCODING_7BIT;
+                        encoding = SmsMessage.ENCODING_7BIT;
                     }
                     break;
 
                 case 0x02:
-                    encoding = SmsConstants.ENCODING_7BIT;
+                    encoding = SmsMessage.ENCODING_7BIT;
                     language = LANGUAGE_CODES_GROUP_2[dataCodingScheme & 0x0f];
                     break;
 
                 case 0x03:
-                    encoding = SmsConstants.ENCODING_7BIT;
+                    encoding = SmsMessage.ENCODING_7BIT;
                     break;
 
                 case 0x04:
                 case 0x05:
                     switch ((dataCodingScheme & 0x0c) >> 2) {
                         case 0x01:
-                            encoding = SmsConstants.ENCODING_8BIT;
+                            encoding = SmsMessage.ENCODING_8BIT;
                             break;
 
                         case 0x02:
-                            encoding = SmsConstants.ENCODING_16BIT;
+                            encoding = SmsMessage.ENCODING_16BIT;
                             break;
 
                         case 0x00:
                         default:
-                            encoding = SmsConstants.ENCODING_7BIT;
+                            encoding = SmsMessage.ENCODING_7BIT;
                             break;
                     }
                     break;
@@ -574,15 +564,15 @@ public class SmsCbHeader {
 
                 case 0x0f:
                     if (((dataCodingScheme & 0x04) >> 2) == 0x01) {
-                        encoding = SmsConstants.ENCODING_8BIT;
+                        encoding = SmsMessage.ENCODING_8BIT;
                     } else {
-                        encoding = SmsConstants.ENCODING_7BIT;
+                        encoding = SmsMessage.ENCODING_7BIT;
                     }
                     break;
 
                 default:
                     // Reserved values are to be treated as 7-bit
-                    encoding = SmsConstants.ENCODING_7BIT;
+                    encoding = SmsMessage.ENCODING_7BIT;
                     break;
             }
 

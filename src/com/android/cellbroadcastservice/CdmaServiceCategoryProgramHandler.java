@@ -23,9 +23,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Looper;
 import android.os.Message;
 import android.provider.Telephony.Sms.Intents;
-import android.telephony.SubscriptionManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
 
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public final class CdmaServiceCategoryProgramHandler extends WakeLockStateMachin
      * Create a new CDMA inbound SMS handler.
      */
     CdmaServiceCategoryProgramHandler(Context context) {
-        super("CdmaServiceCategoryProgramHandler", context);
+        super("CdmaServiceCategoryProgramHandler", context, Looper.myLooper());
         mContext = context;
     }
 
@@ -134,11 +134,11 @@ public final class CdmaServiceCategoryProgramHandler extends WakeLockStateMachin
         Intent intent = new Intent(Intents.SMS_SERVICE_CATEGORY_PROGRAM_DATA_RECEIVED_ACTION);
         intent.putExtra("sender", originatingAddress);
         intent.putParcelableArrayListExtra("program_data", programData);
-        SubscriptionManager.putPhoneIdAndSubIdExtra(intent, phoneId);
+        CellBroadcastHandler.putPhoneIdAndSubIdExtra(mContext, intent, phoneId);
 
         // TODO: move this resource and its overlays to the CellBroadcastService directory
         String[] pkgs = mContext.getResources().getStringArray(
-                com.android.internal.R.array.config_defaultCellBroadcastReceiverPkgs);
+                R.array.config_defaultCellBroadcastReceiverPkgs);
         mReceiverCount.addAndGet(pkgs.length);
         for (String pkg : pkgs) {
             intent.setPackage(pkg);

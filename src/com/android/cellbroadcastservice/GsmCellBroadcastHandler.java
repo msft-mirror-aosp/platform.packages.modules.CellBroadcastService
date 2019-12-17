@@ -16,14 +16,15 @@
 
 package com.android.cellbroadcastservice;
 
-import static com.android.internal.telephony.gsm.SmsCbConstants.MESSAGE_ID_CMAS_GEO_FENCING_TRIGGER;
-
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
+import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Looper;
 import android.os.Message;
+import android.os.SystemClock;
 import android.provider.Telephony.CellBroadcasts;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CellIdentity;
@@ -31,15 +32,16 @@ import android.telephony.CellIdentityGsm;
 import android.telephony.CellInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.format.DateUtils;
 import android.util.Pair;
 
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage;
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage.CellBroadcastIdentity;
+import com.android.internal.annotations.VisibleForTesting;
 
-import dalvik.annotation.compat.UnsupportedAppUsage;
-
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -55,12 +57,12 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     private static final String MESSAGE_NOT_BROADCASTED = "0";
 
     /** This map holds incomplete concatenated messages waiting for assembly. */
-    @UnsupportedAppUsage
     private final HashMap<SmsCbConcatInfo, byte[][]> mSmsCbPageMap =
             new HashMap<>(4);
 
-    protected GsmCellBroadcastHandler(Context context) {
-        super("GsmCellBroadcastHandler", context);
+    @VisibleForTesting
+    public GsmCellBroadcastHandler(Context context, Looper looper) {
+        super("GsmCellBroadcastHandler", context, looper);
     }
 
     @Override
@@ -82,7 +84,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
      * @return the new handler
      */
     public static GsmCellBroadcastHandler makeGsmCellBroadcastHandler(Context context) {
-        GsmCellBroadcastHandler handler = new GsmCellBroadcastHandler(context);
+        GsmCellBroadcastHandler handler = new GsmCellBroadcastHandler(context, Looper.myLooper());
         handler.start();
         return handler;
     }
@@ -99,8 +101,25 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         final List<SmsCbMessage> cbMessages = new ArrayList<>();
         final List<Uri> cbMessageUris = new ArrayList<>();
 
+        SubscriptionManager subMgr = (SubscriptionManager) mContext.getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        int[] subIds = subMgr.getSubscriptionIds(slotIndex);
+        Resources res;
+        if (subIds != null) {
+            res = getResources(subIds[0]);
+        } else {
+            res = getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        }
+
         // Only consider the cell broadcast received within 24 hours.
         long lastReceivedTime = System.currentTimeMillis() - DateUtils.DAY_IN_MILLIS;
+
+        // Some carriers require reset duplication detection after airplane mode or reboot.
+        if (res.getBoolean(R.bool.reset_on_power_cycle_or_airplane_mode)) {
+            lastReceivedTime = Long.max(lastReceivedTime, mLastAirplaneModeTime);
+            lastReceivedTime = Long.max(lastReceivedTime,
+                    System.currentTimeMillis() - SystemClock.elapsedRealtime());
+        }
 
         // Find the cell broadcast message identify by the message identifier and serial number
         // and is not broadcasted.
@@ -112,7 +131,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         ContentResolver resolver = mContext.getContentResolver();
         for (CellBroadcastIdentity identity : geoFencingTriggerMessage.cbIdentifiers) {
             try (Cursor cursor = resolver.query(CellBroadcasts.CONTENT_URI,
-                    CellBroadcasts.QUERY_COLUMNS_FWK,
+                    CellBroadcastProvider.QUERY_COLUMNS,
                     where,
                     new String[] { Integer.toString(identity.messageIdentifier),
                             Integer.toString(identity.serialNumber), MESSAGE_NOT_BROADCASTED,
@@ -127,6 +146,9 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 }
             }
         }
+
+        log("Found " + cbMessages.size() + " not broadcasted messages since "
+                + DateFormat.getDateTimeInstance().format(lastReceivedTime));
 
         List<Geometry> commonBroadcastArea = new ArrayList<>();
         if (geoFencingTriggerMessage.shouldShareBroadcastArea()) {
@@ -194,7 +216,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             SmsCbHeader header = createSmsCbHeader(pdu);
             if (header == null) return false;
 
-            if (header.getServiceCategory() == MESSAGE_ID_CMAS_GEO_FENCING_TRIGGER) {
+            log("header=" + header);
+            if (header.getServiceCategory() == SmsCbConstants.MESSAGE_ID_CMAS_GEO_FENCING_TRIGGER) {
                 GeoFencingTriggerMessage triggerMessage =
                         GsmSmsCbMessage.createGeoFencingTriggerMessage(pdu);
                 if (triggerMessage != null) {
@@ -259,7 +282,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             if (VDBG) log("header=" + header);
             TelephonyManager tm =
                     (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
-            tm.createForSubscriptionId(getSubIdForPhone(slotIndex));
+            tm.createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
             // TODO make a systemAPI for getNetworkOperatorForSlotIndex
             String plmn = tm.getSimOperator();
             int lac = -1;
@@ -286,7 +309,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
                 case SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE:
                 default:
-                    location = new SmsCbLocation(plmn);
+                    location = new SmsCbLocation(plmn, -1, -1);
                     break;
             }
 
@@ -365,7 +388,6 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         private final SmsCbHeader mHeader;
         private final SmsCbLocation mLocation;
 
-        @UnsupportedAppUsage
         SmsCbConcatInfo(SmsCbHeader header, SmsCbLocation location) {
             mHeader = header;
             mLocation = location;
@@ -401,7 +423,6 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
          * @param cid the current Cell ID
          * @return true if this message is valid for the current location; false otherwise
          */
-        @UnsupportedAppUsage
         public boolean matchesLocation(String plmn, int lac, int cid) {
             return mLocation.isInLocationArea(plmn, lac, cid);
         }

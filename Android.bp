@@ -4,9 +4,13 @@ android_app {
     name: "CellBroadcastServiceModule",
     srcs: [
       "src/**/*.java",
+      ":framework-annotations",
       ":framework-cellbroadcast-shared-srcs",
     ],
-    libs: ["telephony-common"],
+    libs: [
+        "telephony-common",
+        "unsupportedappusage",
+    ],
     platform_apis: true,
     certificate: "platform",
     privileged: true,

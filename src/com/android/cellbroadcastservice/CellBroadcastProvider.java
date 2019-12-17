@@ -16,7 +16,6 @@
 
 package com.android.cellbroadcastservice;
 
-import android.app.AppOpsManager;
 import android.content.ContentProvider;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -31,6 +30,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Process;
 import android.provider.Telephony.CellBroadcasts;
+import android.telephony.Rlog;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -98,6 +98,37 @@ public class CellBroadcastProvider extends ContentProvider {
     /** Content uri of this provider. */
     public static final Uri CONTENT_URI = Uri.parse("content://cellbroadcasts");
 
+    /**
+     * Local definition of the query columns for instantiating
+     * {@link android.telephony.SmsCbMessage} objects.
+     */
+    public static final String[] QUERY_COLUMNS = {
+            CellBroadcasts._ID,
+            CellBroadcasts.SLOT_INDEX,
+            CellBroadcasts.SUB_ID,
+            CellBroadcasts.GEOGRAPHICAL_SCOPE,
+            CellBroadcasts.PLMN,
+            CellBroadcasts.LAC,
+            CellBroadcasts.CID,
+            CellBroadcasts.SERIAL_NUMBER,
+            CellBroadcasts.SERVICE_CATEGORY,
+            CellBroadcasts.LANGUAGE_CODE,
+            CellBroadcasts.MESSAGE_BODY,
+            CellBroadcasts.MESSAGE_FORMAT,
+            CellBroadcasts.MESSAGE_PRIORITY,
+            CellBroadcasts.ETWS_WARNING_TYPE,
+            CellBroadcasts.CMAS_MESSAGE_CLASS,
+            CellBroadcasts.CMAS_CATEGORY,
+            CellBroadcasts.CMAS_RESPONSE_TYPE,
+            CellBroadcasts.CMAS_SEVERITY,
+            CellBroadcasts.CMAS_URGENCY,
+            CellBroadcasts.CMAS_CERTAINTY,
+            CellBroadcasts.RECEIVED_TIME,
+            CellBroadcasts.MESSAGE_BROADCASTED,
+            CellBroadcasts.GEOMETRIES,
+            CellBroadcasts.MAXIMUM_WAIT_TIME
+    };
+
     @VisibleForTesting
     public PermissionChecker mPermissionChecker;
 
@@ -121,7 +152,6 @@ public class CellBroadcastProvider extends ContentProvider {
     public boolean onCreate() {
         mDbHelper = new CellBroadcastDatabaseHelper(getContext());
         mPermissionChecker = new CellBroadcastPermissionChecker();
-        setAppOps(AppOpsManager.OP_READ_CELL_BROADCASTS, AppOpsManager.OP_NONE);
         return true;
     }
 
@@ -148,7 +178,7 @@ public class CellBroadcastProvider extends ContentProvider {
         checkReadPermission(uri);
 
         if (DBG) {
-            Log.d(TAG, "query:"
+            Rlog.d(TAG, "query:"
                     + " uri = " + uri
                     + " projection = " + Arrays.toString(projection)
                     + " selection = " + selection
@@ -188,7 +218,7 @@ public class CellBroadcastProvider extends ContentProvider {
         checkWritePermission();
 
         if (DBG) {
-            Log.d(TAG, "insert:"
+            Rlog.d(TAG, "insert:"
                     + " uri = " + uri
                     + " contentValue = " + values);
         }
@@ -203,7 +233,7 @@ public class CellBroadcastProvider extends ContentProvider {
                             .notifyChange(CONTENT_URI, null /* observer */);
                     return newUri;
                 } else {
-                    Log.e(TAG, "Insert record failed because of unknown reason, uri = " + uri);
+                    Rlog.e(TAG, "Insert record failed because of unknown reason, uri = " + uri);
                     return null;
                 }
             default:
@@ -217,7 +247,7 @@ public class CellBroadcastProvider extends ContentProvider {
         checkWritePermission();
 
         if (DBG) {
-            Log.d(TAG, "delete:"
+            Rlog.d(TAG, "delete:"
                     + " uri = " + uri
                     + " selection = " + selection
                     + " selectionArgs = " + Arrays.toString(selectionArgs));
@@ -238,7 +268,7 @@ public class CellBroadcastProvider extends ContentProvider {
         checkWritePermission();
 
         if (DBG) {
-            Log.d(TAG, "update:"
+            Rlog.d(TAG, "update:"
                     + " uri = " + uri
                     + " values = {" + values + "}"
                     + " selection = " + selection
@@ -345,12 +375,12 @@ public class CellBroadcastProvider extends ContentProvider {
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
             if (DBG) {
-                Log.d(TAG, "onUpgrade: oldV=" + oldVersion + " newV=" + newVersion);
+                Rlog.d(TAG, "onUpgrade: oldV=" + oldVersion + " newV=" + newVersion);
             }
-            if (newVersion == 2) {
+            if (oldVersion < 2) {
                 db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
                         + CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0;");
-                Log.d(TAG, "add slotIndex column");
+                Rlog.d(TAG, "add slotIndex column");
             }
         }
     }

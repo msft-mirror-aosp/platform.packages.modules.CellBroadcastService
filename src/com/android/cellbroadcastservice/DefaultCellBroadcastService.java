@@ -19,12 +19,14 @@ package com.android.cellbroadcastservice;
 import android.content.Context;
 import android.os.Bundle;
 import android.telephony.CellBroadcastService;
+import android.telephony.Rlog;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
-import android.util.Log;
+
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,13 +59,13 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
 
     @Override
     public void onGsmCellBroadcastSms(int slotIndex, byte[] message) {
-        Log.d(TAG, "onGsmCellBroadcastSms received message on slotId=" + slotIndex);
+        Rlog.d(TAG, "onGsmCellBroadcastSms received message on slotId=" + slotIndex);
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(slotIndex, message);
     }
 
     @Override
     public void onCdmaCellBroadcastSms(int slotIndex, byte[] bearerData, int serviceCategory) {
-        Log.d(TAG, "onCdmaCellBroadcastSms received message on slotId=" + slotIndex);
+        Rlog.d(TAG, "onCdmaCellBroadcastSms received message on slotId=" + slotIndex);
         int[] subIds =
                 ((SubscriptionManager) getSystemService(
                         Context.TELEPHONY_SUBSCRIPTION_SERVICE)).getSubscriptionIds(slotIndex);
@@ -76,7 +78,8 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
         } else {
             plmn = "";
         }
-        SmsCbMessage message = parseBroadcastSms(slotIndex, plmn, bearerData, serviceCategory);
+        SmsCbMessage message = parseBroadcastSms(getApplicationContext(), slotIndex, plmn,
+                bearerData, serviceCategory);
         if (message != null) {
             mCdmaCellBroadcastHandler.onCdmaCellBroadcastSms(message);
         }
@@ -85,11 +88,10 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
     @Override
     public void onCdmaScpMessage(int slotIndex, List<CdmaSmsCbProgramData> programData,
             String originatingAddress, Consumer<Bundle> callback) {
-        Log.d(TAG, "onCdmaScpMessage received message on slotId=" + slotIndex);
+        Rlog.d(TAG, "onCdmaScpMessage received message on slotId=" + slotIndex);
         mCdmaScpHandler.onCdmaScpMessage(slotIndex, new ArrayList<>(programData),
                 originatingAddress, callback);
     }
-
 
     /**
      * Parses a CDMA broadcast SMS
@@ -99,20 +101,31 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
      * @param bearerData the bearerData of the SMS
      * @param serviceCategory the service category of the broadcast
      */
-    private SmsCbMessage parseBroadcastSms(int slotIndex, String plmn, byte[] bearerData,
+    @VisibleForTesting
+    public static SmsCbMessage parseBroadcastSms(Context context, int slotIndex, String plmn,
+            byte[] bearerData,
             int serviceCategory) {
-        BearerData bData = BearerData.decode(bearerData, serviceCategory);
+        BearerData bData = BearerData.decode(context, bearerData, serviceCategory);
         if (bData == null) {
-            Log.w(TAG, "BearerData.decode() returned null");
+            Rlog.w(TAG, "BearerData.decode() returned null");
             return null;
         }
-        Log.d(TAG, "MT raw BearerData = " + toHexString(bearerData, 0, bearerData.length));
-        SmsCbLocation location = new SmsCbLocation(plmn);
+        Rlog.d(TAG, "MT raw BearerData = " + toHexString(bearerData, 0, bearerData.length));
+        SmsCbLocation location = new SmsCbLocation(plmn, -1, -1);
+
+        SubscriptionManager sm = (SubscriptionManager) context.getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        int subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+        int[] subIds = sm.getSubscriptionIds(slotIndex);
+        if (subIds != null && subIds.length > 0) {
+            subId = subIds[0];
+        }
 
         return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP2,
                 SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE, bData.messageId, location,
                 serviceCategory, bData.getLanguage(), bData.userData.payloadStr,
-                bData.priority, null, bData.cmasWarningInfo, slotIndex);
+                bData.priority, null, bData.cmasWarningInfo, 0, null, System.currentTimeMillis(),
+                slotIndex, subId);
     }
 
     private static String toHexString(byte[] array, int offset, int length) {
