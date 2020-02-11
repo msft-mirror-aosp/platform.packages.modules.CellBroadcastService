@@ -1,0 +1,48 @@
+// Copyright 2019 The Android Open Source Project
+
+android_app {
+    name: "CellBroadcastServiceModule",
+    srcs: [
+      "src/**/*.java",
+      ":framework-annotations",
+      ":framework-cellbroadcast-shared-srcs",
+    ],
+    libs: [
+        "telephony-common",
+        "unsupportedappusage",
+    ],
+    platform_apis: true,
+    certificate: "platform",
+    privileged: true,
+    resource_dirs: ["res"],
+    optimize: {
+        proguard_flags_files: ["proguard.flags"],
+    },
+}
+
+// used to share common constants between cellbroadcastservice and cellbroadcastreceier
+filegroup {
+    name: "cellbroadcast-constants-shared-srcs",
+    srcs: [
+        "src/com/android/cellbroadcastservice/SmsCbConstants.java",
+    ],
+}
+
+// used to share src with cellbroadcastreceiver test app
+filegroup {
+    name: "cellbroadcast-util-shared-srcs",
+    srcs: [
+        "src/com/android/cellbroadcastservice/GsmAlphabet.java",
+        "src/com/android/cellbroadcastservice/CbGeoUtils.java",
+        "src/com/android/cellbroadcastservice/SmsCbHeader.java",
+    ],
+}
+
+// used to share src with unit test app
+filegroup {
+    name: "cellbroadcast-shared-srcs",
+    srcs: [
+        "src/**/*.java",
+        ":framework-cellbroadcast-shared-srcs",
+    ],
+}
