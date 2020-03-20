@@ -27,8 +27,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
-import android.os.Binder;
-import android.os.Process;
 import android.provider.Telephony.CellBroadcasts;
 import android.text.TextUtils;
 import android.util.Log;
@@ -39,9 +37,9 @@ import java.util.Arrays;
 
 /**
  * The content provider that provides access of cell broadcast message to application.
- * Permission {@link android.permission.READ_CELL_BROADCASTS} is required for querying the cell
- * broadcast message. Only phone process has the permission to write/update the database via this
- * provider.
+ * Permission {@link com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY} is
+ * required for querying the cell broadcast message. Only the Cell Broadcast module should have this
+ * permission.
  */
 public class CellBroadcastProvider extends ContentProvider {
     /** Interface for read/write permission check. */
@@ -67,7 +65,7 @@ public class CellBroadcastProvider extends ContentProvider {
     private static final String DATABASE_NAME = "cellbroadcasts.db";
 
     /** Database version. */
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
 
     /** URI matcher for ContentProvider queries. */
     private static final UriMatcher sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
@@ -104,7 +102,7 @@ public class CellBroadcastProvider extends ContentProvider {
     public static final String[] QUERY_COLUMNS = {
             CellBroadcasts._ID,
             CellBroadcasts.SLOT_INDEX,
-            CellBroadcasts.SUB_ID,
+            CellBroadcasts.SUBSCRIPTION_ID,
             CellBroadcasts.GEOGRAPHICAL_SCOPE,
             CellBroadcasts.PLMN,
             CellBroadcasts.LAC,
@@ -112,6 +110,7 @@ public class CellBroadcastProvider extends ContentProvider {
             CellBroadcasts.SERIAL_NUMBER,
             CellBroadcasts.SERVICE_CATEGORY,
             CellBroadcasts.LANGUAGE_CODE,
+            CellBroadcasts.DATA_CODING_SCHEME,
             CellBroadcasts.MESSAGE_BODY,
             CellBroadcasts.MESSAGE_FORMAT,
             CellBroadcasts.MESSAGE_PRIORITY,
@@ -123,7 +122,9 @@ public class CellBroadcastProvider extends ContentProvider {
             CellBroadcasts.CMAS_URGENCY,
             CellBroadcasts.CMAS_CERTAINTY,
             CellBroadcasts.RECEIVED_TIME,
+            CellBroadcasts.LOCATION_CHECK_TIME,
             CellBroadcasts.MESSAGE_BROADCASTED,
+            CellBroadcasts.MESSAGE_DISPLAYED,
             CellBroadcasts.GEOMETRIES,
             CellBroadcasts.MAXIMUM_WAIT_TIME
     };
@@ -299,7 +300,7 @@ public class CellBroadcastProvider extends ContentProvider {
     public static String getStringForCellBroadcastTableCreation(String tableName) {
         return "CREATE TABLE " + tableName + " ("
                 + CellBroadcasts._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
-                + CellBroadcasts.SUB_ID + " INTEGER,"
+                + CellBroadcasts.SUBSCRIPTION_ID + " INTEGER,"
                 + CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0,"
                 + CellBroadcasts.GEOGRAPHICAL_SCOPE + " INTEGER,"
                 + CellBroadcasts.PLMN + " TEXT,"
@@ -308,6 +309,7 @@ public class CellBroadcastProvider extends ContentProvider {
                 + CellBroadcasts.SERIAL_NUMBER + " INTEGER,"
                 + CellBroadcasts.SERVICE_CATEGORY + " INTEGER,"
                 + CellBroadcasts.LANGUAGE_CODE + " TEXT,"
+                + CellBroadcasts.DATA_CODING_SCHEME + " INTEGER DEFAULT 0,"
                 + CellBroadcasts.MESSAGE_BODY + " TEXT,"
                 + CellBroadcasts.MESSAGE_FORMAT + " INTEGER,"
                 + CellBroadcasts.MESSAGE_PRIORITY + " INTEGER,"
@@ -319,7 +321,9 @@ public class CellBroadcastProvider extends ContentProvider {
                 + CellBroadcasts.CMAS_URGENCY + " INTEGER,"
                 + CellBroadcasts.CMAS_CERTAINTY + " INTEGER,"
                 + CellBroadcasts.RECEIVED_TIME + " BIGINT,"
+                + CellBroadcasts.LOCATION_CHECK_TIME + " BIGINT DEFAULT -1,"
                 + CellBroadcasts.MESSAGE_BROADCASTED + " BOOLEAN DEFAULT 0,"
+                + CellBroadcasts.MESSAGE_DISPLAYED + " BOOLEAN DEFAULT 0,"
                 + CellBroadcasts.GEOMETRIES + " TEXT,"
                 + CellBroadcasts.MAXIMUM_WAIT_TIME + " INTEGER);";
     }
@@ -380,6 +384,16 @@ public class CellBroadcastProvider extends ContentProvider {
                 db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
                         + CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0;");
                 Log.d(TAG, "add slotIndex column");
+            } else if (oldVersion < 3) {
+                db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
+                        + CellBroadcasts.DATA_CODING_SCHEME + " INTEGER DEFAULT 0;");
+                db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
+                        + CellBroadcasts.LOCATION_CHECK_TIME + " BIGINT DEFAULT -1;");
+                // Specifically for upgrade, the message displayed should be true. For newly arrived
+                // message, default should be false.
+                db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
+                        + CellBroadcasts.MESSAGE_DISPLAYED + " BOOLEAN DEFAULT 1;");
+                Log.d(TAG, "add dcs, location check time, and message displayed column.");
             }
         }
     }
@@ -387,18 +401,22 @@ public class CellBroadcastProvider extends ContentProvider {
     private class CellBroadcastPermissionChecker implements PermissionChecker {
         @Override
         public boolean hasWritePermission() {
-            // Only the phone and network statck process has the write permission to modify this
-            // provider.
-            return Binder.getCallingUid() == Process.PHONE_UID
-                    || Binder.getCallingUid() == Process.NETWORK_STACK_UID;
+            int status = getContext().checkCallingOrSelfPermission(
+                    "com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY");
+            if (status == PackageManager.PERMISSION_GRANTED) {
+                return true;
+            }
+            return false;
         }
 
         @Override
         public boolean hasReadPermission() {
-            // Only the phone and network stack process has the read permission to query data from
-            // this provider.
-            return Binder.getCallingUid() == Process.PHONE_UID
-                    || Binder.getCallingUid() == Process.NETWORK_STACK_UID;
+            int status = getContext().checkCallingOrSelfPermission(
+                    "com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY");
+            if (status == PackageManager.PERMISSION_GRANTED) {
+                return true;
+            }
+            return false;
         }
 
         @Override

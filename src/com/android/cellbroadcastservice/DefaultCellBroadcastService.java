@@ -16,6 +16,7 @@
 
 package com.android.cellbroadcastservice;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.os.Bundle;
 import android.telephony.CellBroadcastService;
@@ -58,6 +59,13 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
     }
 
     @Override
+    public void onDestroy() {
+        mGsmCellBroadcastHandler.cleanup();
+        mCdmaCellBroadcastHandler.cleanup();
+        super.onDestroy();
+    }
+
+    @Override
     public void onGsmCellBroadcastSms(int slotIndex, byte[] message) {
         Log.d(TAG, "onGsmCellBroadcastSms received message on slotId=" + slotIndex);
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(slotIndex, message);
@@ -93,6 +101,12 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
                 originatingAddress, callback);
     }
 
+    @Override
+    public @NonNull String getCellBroadcastAreaInfo(int slotIndex) {
+        Log.d(TAG, "getCellBroadcastAreaInfo on slotId=" + slotIndex);
+        return mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(slotIndex);
+    }
+
     /**
      * Parses a CDMA broadcast SMS
      *
@@ -123,9 +137,9 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
 
         return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP2,
                 SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE, bData.messageId, location,
-                serviceCategory, bData.getLanguage(), bData.userData.payloadStr,
-                bData.priority, null, bData.cmasWarningInfo, 0, null, System.currentTimeMillis(),
-                slotIndex, subId);
+                serviceCategory, bData.getLanguage(), bData.userData.msgEncoding,
+                bData.userData.payloadStr, bData.priority, null, bData.cmasWarningInfo, 0, null,
+                System.currentTimeMillis(), slotIndex, subId);
     }
 
     private static String toHexString(byte[] array, int offset, int length) {

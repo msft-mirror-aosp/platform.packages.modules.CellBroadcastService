@@ -114,6 +114,29 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      */
     private final Map<Integer, Integer> mServiceCategoryCrossRATMap;
 
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case Intent.ACTION_AIRPLANE_MODE_CHANGED:
+                    boolean airplaneModeOn = intent.getBooleanExtra("state", false);
+                    if (airplaneModeOn) {
+                        mLastAirplaneModeTime = System.currentTimeMillis();
+                        log("Airplane mode on.");
+                    }
+                    break;
+                case ACTION_DUPLICATE_DETECTION:
+                    mEnableDuplicateDetection = intent.getBooleanExtra(EXTRA_ENABLE,
+                            true);
+                    log("Duplicate detection " + (mEnableDuplicateDetection
+                            ? "enabled" : "disabled"));
+                    break;
+                default:
+                    log("Unhandled broadcast " + intent.getAction());
+            }
+        }
+    };
+
     private CellBroadcastHandler(Context context) {
         this("CellBroadcastHandler", context, Looper.myLooper());
     }
@@ -188,26 +211,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         if (IS_DEBUGGABLE) {
             intentFilter.addAction(ACTION_DUPLICATE_DETECTION);
         }
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        switch (intent.getAction()) {
-                            case Intent.ACTION_AIRPLANE_MODE_CHANGED:
-                                boolean airplaneModeOn = intent.getBooleanExtra("state", false);
-                                if (airplaneModeOn) {
-                                    mLastAirplaneModeTime = System.currentTimeMillis();
-                                    log("Airplane mode on.");
-                                }
-                                break;
-                            case ACTION_DUPLICATE_DETECTION:
-                                mEnableDuplicateDetection = intent.getBooleanExtra(EXTRA_ENABLE,
-                                        true);
-                                break;
-                        }
 
-                    }
-                }, intentFilter);
+        mContext.registerReceiver(mReceiver, intentFilter);
+    }
+
+    public void cleanup() {
+        if (DBG) log("CellBroadcastHandler cleanup");
+        mContext.unregisterReceiver(mReceiver);
     }
 
     /**
@@ -333,6 +343,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         }
 
         boolean compareMessageBody = res.getBoolean(R.bool.duplicate_compare_body);
+        boolean compareCellLocation = res.getBoolean(R.bool.duplicate_compare_cell_location);
 
         log("Found " + cbMessages.size() + " messages since "
                 + DateFormat.getDateTimeInstance().format(dupCheckTime));
@@ -347,7 +358,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 // Check serial number if message is from the same carrier.
                 if (message.getSerialNumber() != messageToCheck.getSerialNumber()) {
                     // Not a dup. Check next one.
-                    log("Serial number check. Not a dup. " + messageToCheck);
                     continue;
                 }
 
@@ -356,7 +366,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                         && message.getEtwsWarningInfo().isPrimary()
                         != messageToCheck.getEtwsWarningInfo().isPrimary()) {
                     // Not a dup. Check next one.
-                    log("ETWS primary check. Not a dup. " + messageToCheck);
                     continue;
                 }
 
@@ -370,7 +379,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                                 messageToCheck.getServiceCategory()),
                         message.getServiceCategory())) {
                     // Not a dup. Check next one.
-                    log("Service category check. Not a dup. " + messageToCheck);
+                    continue;
+                }
+
+                // For some carriers, comparing cell location is required.
+                if (compareCellLocation && (!message.getLocation().equals(
+                        messageToCheck.getLocation()))) {
+                    // Not a dup. Check next one.
                     continue;
                 }
 
@@ -402,6 +417,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             logd("Perform geo-fencing check for message identifier = "
                     + message.getServiceCategory()
                     + " serialNumber = " + message.getSerialNumber());
+        }
+
+        if (uri != null) {
+            ContentValues cv = new ContentValues();
+            cv.put(CellBroadcasts.LOCATION_CHECK_TIME, System.currentTimeMillis());
+            mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
+                    CellBroadcasts._ID + "=?", new String[] {uri.getLastPathSegment()});
         }
 
         for (Geometry geo : broadcastArea) {
@@ -508,8 +530,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                     // Explicitly send the intent to all the configured cell broadcast receivers.
                     intent.setPackage(pkg);
                     mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
-                            intent, receiverPermission, appOp, mReceiver, getHandler(),
-                            Activity.RESULT_OK, null, null);
+                            intent, receiverPermission, appOp, mOrderedBroadcastReceiver,
+                            getHandler(), Activity.RESULT_OK, null, null);
                 }
             }
         } else {
@@ -518,18 +540,11 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             mLocalLog.log(msg);
             // Send implicit intent since there are various 3rd party carrier apps listen to
             // this intent.
-            intent = new Intent(Telephony.Sms.Intents.SMS_CB_RECEIVED_ACTION);
-            receiverPermission = Manifest.permission.RECEIVE_SMS;
-            appOp = AppOpsManager.OPSTR_RECEIVE_SMS;
-
-            intent.putExtra(EXTRA_MESSAGE, message);
-            putPhoneIdAndSubIdExtra(mContext, intent, slotIndex);
 
             mReceiverCount.incrementAndGet();
-            CellBroadcastIntents.sendOrderedBroadcastForBackgroundReceivers(
-                    mContext, UserHandle.ALL, intent,
-                    receiverPermission, appOp, mReceiver, getHandler(), Activity.RESULT_OK,
-                    null, null);
+            CellBroadcastIntents.sendSmsCbReceivedBroadcast(
+                    mContext, UserHandle.ALL, message, mOrderedBroadcastReceiver, getHandler(),
+                    Activity.RESULT_OK, slotIndex);
         }
 
         if (messageUri != null) {

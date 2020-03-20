@@ -1,7 +1,7 @@
 // Copyright 2019 The Android Open Source Project
-
-android_app {
-    name: "CellBroadcastServiceModule",
+java_defaults {
+    name: "CellBroadcastServiceCommon",
+    min_sdk_version: "29",
     srcs: [
       "src/**/*.java",
       ":framework-annotations",
@@ -18,6 +18,25 @@ android_app {
     optimize: {
         proguard_flags_files: ["proguard.flags"],
     },
+    jarjar_rules: "cellbroadcast-jarjar-rules.txt",
+    plugins: ["java_api_finder"],
+}
+
+android_app {
+    name: "CellBroadcastServiceModule",
+    defaults: ["CellBroadcastServiceCommon"],
+    certificate: "networkstack",
+    manifest: "AndroidManifest.xml",
+}
+
+android_app {
+     name: "CellBroadcastServiceModulePlatform",
+     defaults: ["CellBroadcastServiceCommon"],
+     certificate: "platform",
+     // CellBroadcastServicePlatformModule is a replacement for com.android.cellbroadcast apex
+     // which consists of CellBroadcastServiceModule
+     overrides: ["com.android.cellbroadcast"],
+     manifest: "AndroidManifest_Platform.xml",
 }
 
 // used to share common constants between cellbroadcastservice and cellbroadcastreceier
@@ -25,6 +44,16 @@ filegroup {
     name: "cellbroadcast-constants-shared-srcs",
     srcs: [
         "src/com/android/cellbroadcastservice/SmsCbConstants.java",
+    ],
+}
+
+// used to share src with cellbroadcastreceiver test app
+filegroup {
+    name: "cellbroadcast-util-shared-srcs",
+    srcs: [
+        "src/com/android/cellbroadcastservice/GsmAlphabet.java",
+        "src/com/android/cellbroadcastservice/CbGeoUtils.java",
+        "src/com/android/cellbroadcastservice/SmsCbHeader.java",
     ],
 }
 
