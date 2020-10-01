@@ -16,8 +16,11 @@
 
 package com.android.cellbroadcastservice.tests;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
 
 import android.content.ContentValues;
 import android.content.Intent;
@@ -25,8 +28,10 @@ import android.content.res.Resources;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.SystemProperties;
 import android.provider.Telephony;
+import android.telephony.CbGeoUtils;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
@@ -51,6 +56,7 @@ import org.mockito.Mock;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Map;
 
 @RunWith(AndroidTestingRunner.class)
@@ -88,6 +94,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         1,              // MESSAGE_FORMAT
                         3,              // MESSAGE_PRIORITY
                         0,              // ETWS_WARNING_TYPE
+                        0,              // ETWS_IS_PRIMARY
                         SmsCbCmasInfo.CMAS_CLASS_PRESIDENTIAL_LEVEL_ALERT, // CMAS_MESSAGE_CLASS
                         0,              // CMAS_CATEGORY
                         0,              // CMAS_RESPONSE_TYPE
@@ -131,6 +138,8 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 mMockedResourcesCache);
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time,
                 (int) DateUtils.DAY_IN_MILLIS);
+        putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_service_category,
+                true);
     }
 
     @After
@@ -141,7 +150,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private SmsCbMessage createSmsCbMessage(int serialNumber, int serviceCategory,
             String messageBody) {
         return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, serialNumber, new SmsCbLocation(),
+                0, serialNumber, new SmsCbLocation("311480", 0, 0),
                 serviceCategory, "en", messageBody, 3,
                 null, null, 0, 1);
     }
@@ -172,6 +181,16 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     public void testNotDuplicateMessageBodyDifferent() throws Exception {
         putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_body, true);
         SmsCbMessage msg = createSmsCbMessage(1234, 4370, "msg");
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg));
+    }
+
+    @Test
+    @SmallTest
+    public void testNotDuplicateCellLocationDifferent() throws Exception {
+        SmsCbMessage msg = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 1),
+                4370, "en", "Test Message", 3,
+                null, null, 0, 1);
         assertFalse(mCellBroadcastHandler.isDuplicate(msg));
     }
 
@@ -254,5 +273,28 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             // message should be detected as duplicate again
             assertTrue(mCellBroadcastHandler.isDuplicate(msg));
         }
+    }
+
+    @Test
+    @SmallTest
+    public void testPerformGeoFencing() throws Exception {
+        SmsCbMessage msg = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 1),
+                4370, "en", "Test Message", 3,
+                null, null, 0, 1);
+        Uri uri = Uri.parse("testuri");
+        ArrayList<CbGeoUtils.Geometry> geometries = new ArrayList<>();
+        geometries.add(new CbGeoUtils.Circle(new CbGeoUtils.LatLng(10, 10), 3000));
+        geometries.add(new CbGeoUtils.Circle(new CbGeoUtils.LatLng(12, 10), 3000));
+        geometries.add(new CbGeoUtils.Circle(new CbGeoUtils.LatLng(40, 40), 3000));
+        CbGeoUtils.LatLng location = new CbGeoUtils.LatLng(10, 10);
+
+        putResources(com.android.cellbroadcastservice.R.array
+                .additional_cell_broadcast_receiver_packages, new String[]{});
+
+        mCellBroadcastHandler.performGeoFencing(msg, uri, geometries, location,  0);
+
+        verify(mMockedContext).sendOrderedBroadcast(any(), isNull(), isNull(Bundle.class),
+                any(), any(), anyInt(), isNull(), isNull());
     }
 }
