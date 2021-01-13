@@ -21,10 +21,12 @@ import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADC
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.Uri;
@@ -34,6 +36,7 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Telephony.CellBroadcasts;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.CbGeoUtils;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CellBroadcastIntents;
 import android.telephony.CellIdentity;
@@ -60,6 +63,7 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -71,10 +75,29 @@ import java.util.stream.IntStream;
  * Handler for 3GPP format Cell Broadcasts. Parent class can also handle CDMA Cell Broadcasts.
  */
 public class GsmCellBroadcastHandler extends CellBroadcastHandler {
-    private static final boolean VDBG = false;  // log CB PDU data
+    private static final boolean VDBG_CB_PDU_DATA = false;  // log CB PDU data
 
     /** Indicates that a message is not displayed. */
     private static final String MESSAGE_NOT_DISPLAYED = "0";
+
+    /**
+     * Intent sent from cellbroadcastreceiver to notify cellbroadcastservice that area info update
+     * is disabled/enabled.
+     */
+    private static final String ACTION_AREA_UPDATE_ENABLED =
+            "com.android.cellbroadcastreceiver.action.AREA_UPDATE_INFO_ENABLED";
+
+    /**
+     * The extra for cell ACTION_AREA_UPDATE_ENABLED enable/disable
+     */
+    private static final String EXTRA_ENABLE = "enable";
+
+    /**
+     * This permission is only granted to the cellbroadcast mainline module and thus can be
+     * used for permission check within CBR and CBS.
+     */
+    private static final String CBR_MODULE_PERMISSION =
+            "com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY";
 
     private final SparseArray<String> mAreaInfos = new SparseArray<>();
 
@@ -84,8 +107,12 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
     @VisibleForTesting
     public GsmCellBroadcastHandler(Context context, Looper looper,
-            CbSendMessageCalculatorFactory cbSendMessageCalculatorFactory) {
-        super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory);
+            CbSendMessageCalculatorFactory cbSendMessageCalculatorFactory,
+            CellBroadcastHandler.HandlerHelper handlerHelper) {
+        super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
+                handlerHelper);
+        mContext.registerReceiver(mReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
+                CBR_MODULE_PERMISSION, null);
     }
 
     @Override
@@ -123,7 +150,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
      */
     public static GsmCellBroadcastHandler makeGsmCellBroadcastHandler(Context context) {
         GsmCellBroadcastHandler handler = new GsmCellBroadcastHandler(context, Looper.myLooper(),
-                new CbSendMessageCalculatorFactory());
+                new CbSendMessageCalculatorFactory(), null);
         handler.start();
         return handler;
     }
@@ -218,22 +245,48 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             return false;
         }
 
-        requestLocationUpdate((location, accuracy) -> {
-            if (location == null) {
-                // If the location is not available, broadcast the messages directly.
-                for (int i = 0; i < cbMessages.size(); i++) {
-                    broadcastMessage(cbMessages.get(i), cbMessageUris.get(i), slotIndex);
+        //Create calculators for each message that will be reused on every location update.
+        CbSendMessageCalculator[] calculators = new CbSendMessageCalculator[cbMessages.size()];
+        for (int i = 0; i < cbMessages.size(); i++) {
+            List<Geometry> broadcastArea = !commonBroadcastArea.isEmpty()
+                    ? commonBroadcastArea : cbMessages.get(i).getGeometries();
+            if (broadcastArea == null) {
+                broadcastArea = new ArrayList<>();
+            }
+            calculators[i] = mCbSendMessageCalculatorFactory.createNew(mContext, broadcastArea);
+        }
+
+        requestLocationUpdate(new LocationUpdateCallback() {
+            @Override
+            public void onLocationUpdate(@NonNull CbGeoUtils.LatLng location,
+                    float accuracy) {
+                if (VDBG) {
+                    logd("onLocationUpdate: location=" + location
+                            + ", acc=" + accuracy + ". ");
                 }
-            } else {
                 for (int i = 0; i < cbMessages.size(); i++) {
-                    List<Geometry> broadcastArea = !commonBroadcastArea.isEmpty()
-                            ? commonBroadcastArea : cbMessages.get(i).getGeometries();
-                    if (broadcastArea == null || broadcastArea.isEmpty()) {
-                        broadcastMessage(cbMessages.get(i), cbMessageUris.get(i), slotIndex);
+                    CbSendMessageCalculator calculator = calculators[i];
+                    if (calculator.getFences().isEmpty()) {
+                        broadcastGeofenceMessage(cbMessages.get(i), cbMessageUris.get(i),
+                                slotIndex, calculator);
                     } else {
-                        performGeoFencing(cbMessages.get(i), cbMessageUris.get(i), broadcastArea,
-                                location, slotIndex, accuracy);
+                        performGeoFencing(cbMessages.get(i), cbMessageUris.get(i),
+                                calculator, location, slotIndex, accuracy);
                     }
+                }
+
+                boolean containsAnyAmbiguousMessages = Arrays.stream(calculators)
+                        .anyMatch(c -> isMessageInAmbiguousState(c));
+                if (!containsAnyAmbiguousMessages) {
+                    cancelLocationRequest();
+                }
+            }
+
+            @Override
+            public void onLocationUnavailable() {
+                for (int i = 0; i < cbMessages.size(); i++) {
+                    GsmCellBroadcastHandler.this.onLocationUnavailable(calculators[i],
+                            cbMessages.get(i), cbMessageUris.get(i), slotIndex);
                 }
             }
         }, maxWaitingTimeSec);
@@ -324,7 +377,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                     handleBroadcastSms(cbMessage);
                     return true;
                 }
-                if (VDBG) log("Not handled GSM broadcasts.");
+                if (VDBG_CB_PDU_DATA) log("Not handled GSM broadcasts.");
             }
         } else {
             final String errorMessage = "handleSmsMessage for GSM got object of type: "
@@ -437,7 +490,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     private SmsCbMessage handleGsmBroadcastSms(SmsCbHeader header, byte[] receivedPdu,
             int slotIndex) {
         try {
-            if (VDBG) {
+            if (VDBG_CB_PDU_DATA) {
                 int pduLength = receivedPdu.length;
                 for (int i = 0; i < pduLength; i += 8) {
                     StringBuilder sb = new StringBuilder("SMS CB pdu data: ");
@@ -452,7 +505,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 }
             }
 
-            if (VDBG) log("header=" + header);
+            if (VDBG_CB_PDU_DATA) log("header=" + header);
             TelephonyManager tm =
                     (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
             tm.createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
@@ -485,7 +538,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                     mSmsCbPageMap.put(concatInfo, pdus);
                 }
 
-                if (VDBG) log("pdus size=" + pdus.length);
+                if (VDBG_CB_PDU_DATA) log("pdus size=" + pdus.length);
                 // Page parameter is one-based
                 pdus[header.getPageIndex() - 1] = receivedPdu;
 
@@ -538,6 +591,42 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             return null;
         }
     }
+
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case ACTION_AREA_UPDATE_ENABLED:
+                    boolean enabled = intent.getBooleanExtra(EXTRA_ENABLE, false);
+                    log("Area update info enabled: " + enabled);
+                    String[] pkgs = mContext.getResources().getStringArray(
+                            R.array.config_area_info_receiver_packages);
+                    // set mAreaInfo to null before sending the broadcast to listeners to avoid
+                    // possible race condition.
+                    if (!enabled) {
+                        mAreaInfos.clear();
+                        log("Area update info disabled, clear areaInfo");
+                    }
+                    // notify receivers. the setting is singleton for msim devices, if areaInfo
+                    // toggle was off/on, it will applies for all slots/subscriptions.
+                    TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+                    for(int i = 0; i < tm.getActiveModemCount(); i++) {
+                        for (String pkg : pkgs) {
+                            Intent areaInfoIntent = new Intent(
+                                    CellBroadcastIntents.ACTION_AREA_INFO_UPDATED);
+                            intent.putExtra(SubscriptionManager.EXTRA_SLOT_INDEX, i);
+                            intent.putExtra(EXTRA_ENABLE, enabled);
+                            intent.setPackage(pkg);
+                            mContext.sendBroadcastAsUser(areaInfoIntent, UserHandle.ALL,
+                                    android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE);
+                        }
+                    }
+                    break;
+                default:
+                    log("Unhandled broadcast " + intent.getAction());
+            }
+        }
+    };
 
     /**
      * Holds all info about a message page needed to assemble a complete concatenated message.
