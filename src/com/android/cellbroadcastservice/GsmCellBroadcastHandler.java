@@ -30,7 +30,6 @@ import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.HandlerExecutor;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
@@ -49,12 +48,12 @@ import android.telephony.CellIdentityTdscdma;
 import android.telephony.CellIdentityWcdma;
 import android.telephony.CellInfo;
 import android.telephony.NetworkRegistrationInfo;
+import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
-import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -108,7 +107,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     /**
      * Used to store ServiceStateListeners for each active slot
      */
-    private final SparseArray<TelephonyCallback> mServiceStateListener = new SparseArray<>();
+    private final SparseArray<ServiceStateListener> mServiceStateListener = new SparseArray<>();
 
     /** This map holds incomplete concatenated messages waiting for assembly. */
     private final HashMap<SmsCbConcatInfo, byte[][]> mSmsCbPageMap =
@@ -157,6 +156,17 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         }
     }
 
+    @Override
+    public void cleanup() {
+        log("cleanup");
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
+        int size = mServiceStateListener.size();
+        for (int i = 0; i < size; i++) {
+            tm.listen(mServiceStateListener.valueAt(i), PhoneStateListener.LISTEN_NONE);
+        }
+        super.cleanup();
+    }
+
     private void registerServiceStateListeners() {
         // register for all active slots
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
@@ -166,16 +176,15 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             if (info != null) {
                 int subId = info.getSubscriptionId();
                 if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                    mServiceStateListener.set(slotId, new ServiceStateListener(subId, slotId));
-                    tm.createForSubscriptionId(subId).registerTelephonyCallback(
-                            new HandlerExecutor(getHandler()), mServiceStateListener.get(slotId));
+                    mServiceStateListener.put(slotId, new ServiceStateListener(subId, slotId));
+                    tm.createForSubscriptionId(subId).listen(mServiceStateListener.get(slotId),
+                            PhoneStateListener.LISTEN_SERVICE_STATE);
                 }
             }
         }
     }
 
-    private class ServiceStateListener extends TelephonyCallback implements
-            TelephonyCallback.ServiceStateListener {
+    private class ServiceStateListener extends PhoneStateListener {
         // subId is not needed for clearing area info, only used for debugging purposes
         private int mSubId;
         private int mSlotId;
