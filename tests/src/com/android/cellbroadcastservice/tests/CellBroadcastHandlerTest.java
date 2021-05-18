@@ -224,16 +224,12 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Test
     @SmallTest
     public void testDump() throws Exception {
-        try {
             mCellBroadcastHandler.dump(null, new PrintWriter(new OutputStream() {
                 @Override
                 public void write(int b) throws IOException {
                     // no implementation needed for sanity test
                 }
             }), null);
-        } catch (Exception e) {
-            fail("Exception not expected in dump" + e);
-        }
     }
 
     @Test

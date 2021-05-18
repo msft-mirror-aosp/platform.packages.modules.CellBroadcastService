@@ -64,6 +64,8 @@ import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage.CellBroadcastIdentity;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -781,5 +783,13 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         public boolean matchesLocation(String plmn, int lac, int cid) {
             return mLocation.isInLocationArea(plmn, lac, cid);
         }
+    }
+
+    @Override
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("GsmCellBroadcastHandler:");
+        pw.println("  mAreaInfos=:" + mAreaInfos);
+        pw.println("  mSmsCbPageMap=:" + mSmsCbPageMap);
+        super.dump(fd, pw, args);
     }
 }
