@@ -201,10 +201,11 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         public void onServiceStateChanged(@NonNull ServiceState serviceState) {
             int state = serviceState.getState();
             if (state == ServiceState.STATE_POWER_OFF
-                    || state == ServiceState.STATE_OUT_OF_SERVICE) {
+                    || state == ServiceState.STATE_OUT_OF_SERVICE
+                    || state == ServiceState.STATE_EMERGENCY_ONLY) {
                 synchronized (mAreaInfos) {
                     if (mAreaInfos.contains(mSlotId)) {
-                        log("OOS mSubId=" + mSubId + " mSlotId=" + mSlotId
+                        log("OOS state=" + state + " mSubId=" + mSubId + " mSlotId=" + mSlotId
                                 + ", clearing area infos");
                         mAreaInfos.remove(mSlotId);
                     }
