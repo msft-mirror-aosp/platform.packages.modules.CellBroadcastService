@@ -302,8 +302,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @return true if need to wait for geo-fencing or an ordered broadcast was sent.
      */
     @Override
-    @VisibleForTesting
-    public boolean handleSmsMessage(Message message) {
+    protected boolean handleSmsMessage(Message message) {
         if (message.obj instanceof SmsCbMessage) {
             if (!isDuplicate((SmsCbMessage) message.obj)) {
                 handleBroadcastSms((SmsCbMessage) message.obj);
@@ -626,8 +625,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param slotIndex the index of the slot
      * @param accuracy the accuracy of the coordinate given in meters
      */
-    @VisibleForTesting
-    public void performGeoFencing(SmsCbMessage message, Uri uri,
+    protected void performGeoFencing(SmsCbMessage message, Uri uri,
             CbSendMessageCalculator calculator, LatLng location, int slotIndex, float accuracy) {
 
         logd(calculator.toString() + ", current action="
@@ -777,6 +775,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                     Intent additionalIntent = new Intent(intent);
                     for (String pkg : testPkgs) {
                         additionalIntent.setPackage(pkg);
+                        mLocalLog.log("intent=" + intent + " package=" + pkg);
                         mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
                                 intent, null, (Bundle) null, null, getHandler(),
                                 Activity.RESULT_OK, null, null);
@@ -794,6 +793,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 for (String pkg : pkgs) {
                     // Explicitly send the intent to all the configured cell broadcast receivers.
                     intent.setPackage(pkg);
+                    mLocalLog.log("intent=" + intent + " package=" + pkg);
                     mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
                             intent, null, (Bundle) null, mOrderedBroadcastReceiver, getHandler(),
                             Activity.RESULT_OK, null, null);
@@ -886,6 +886,14 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         pw.println("CellBroadcastHandler:");
         mLocalLog.dump(fd, pw, args);
         pw.flush();
+        try {
+            super.dump(fd, pw, args);
+        } catch (NullPointerException e) {
+            // StateMachine.dump() throws a NPE if there is no current state in the stack. Since
+            // StateMachine is defined in the framework and CBS is updated through mailine, we
+            // catch the NPE here as well as fixing the exception in the framework.
+            pw.println("StateMachine: no state info");
+        }
     }
 
     /** The callback interface of a location request. */
@@ -925,8 +933,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         private final List<LocationUpdateCallback> mCallbacks;
         private final HandlerHelper mHandlerHelper;
         private final Context mContext;
-
         private final LocationListener mLocationListener;
+
         private boolean mLocationUpdateInProgress;
         private final Runnable mLocationUnavailable;
         private final String mDebugTag;
