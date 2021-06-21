@@ -20,7 +20,9 @@ import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADC
 
 import android.annotation.NonNull;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
+import android.provider.Telephony;
 import android.telephony.CellBroadcastService;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
@@ -31,6 +33,8 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -167,5 +171,29 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
             buf[bufIndex++] = HEX_DIGITS[b & 0x0F];
         }
         return new String(buf);
+    }
+
+    @Override
+    protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        writer.println("DefaultCellBroadcastService:");
+        Intent intent = new Intent(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED);
+        writer.println(
+                "  defaultCBRPackageName=" + GsmCellBroadcastHandler.getDefaultCBRPackageName(
+                        getApplicationContext(), intent));
+        if (mGsmCellBroadcastHandler != null) {
+            mGsmCellBroadcastHandler.dump(fd, writer, args);
+        } else {
+            writer.println("  mGsmCellBroadcastHandler is null");
+        }
+        if (mCdmaCellBroadcastHandler != null) {
+            mCdmaCellBroadcastHandler.dump(fd, writer, args);
+        } else {
+            writer.println("  mCdmaCellBroadcastHandler is null");
+        }
+        if (mCdmaScpHandler != null) {
+            mCdmaScpHandler.dump(fd, writer, args);
+        } else {
+            writer.println("  mCdmaScpHandler is null");
+        }
     }
 }
