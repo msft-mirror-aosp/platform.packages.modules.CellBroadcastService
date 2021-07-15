@@ -282,47 +282,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Test
     @SmallTest
-    public void testGeofencingAmgiguous() {
-        CbSendMessageCalculator mockCalculator = mock(CbSendMessageCalculator.class);
-        CellBroadcastHandler.CbSendMessageCalculatorFactory factory = mock(
-                CellBroadcastHandler.CbSendMessageCalculatorFactory.class);
-        mSendMessageFactory.setUnderlyingFactory(factory);
-        doReturn(mockCalculator).when(factory).createNew(any(), any());
-        doReturn(CbSendMessageCalculator.SEND_MESSAGE_ACTION_AMBIGUOUS)
-                .when(mockCalculator)
-                .getAction();
-
-        // This method is copied form #testGeofencingAlertOutOfPolygon that does NOT send a message.
-        // Except, in this case, we are overriding the calculator with DONT_SEND and so our
-        // verification is that a broadcast was sent.
-        final byte[] pdu = hexStringToBytes("01111D7090010254747A0E4ACF416110B538A582DE6650906AA28"
-                + "2AE6979995D9ECF41C576597E2EBBC77950905D96D3D3EE33689A9FD3CB6D1708CA2E87E76550FAE"
-                + "C7ECBCB203ABA0C6A97E7F3F0B9EC02C15CB5769A5D0652A030FB1ECECF5D5076393C2F83C8E9B9B"
-                + "C7C0ECBC9203A3A3D07B5CBF379F85C06E16030580D660BB662B51A0D57CC3500000000000000000"
-                + "0000000000000000000000000000000000000000000000000003021002078B53B6CA4B84B53988A4"
-                + "B86B53958A4C2DB53B54A4C28B53B6CA4B840100CFF");
-        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu);
-        mTestableLooper.processAllMessages();
-
-        ArgumentCaptor<LocationListener> listenerCaptor =
-                ArgumentCaptor.forClass(LocationListener.class);
-        verify(mMockedLocationManager).requestLocationUpdates(
-                any(LocationRequest.class), any(), listenerCaptor.capture());
-
-        LocationListener listener = listenerCaptor.getValue();
-        listener.onLocationChanged(mock(Location.class));
-
-        runLocationUnavailableWhenMaxTimeReached();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mMockedContext).sendOrderedBroadcast(intentCaptor.capture(), any(),
-                (Bundle) any(), any(), any(), anyInt(), any(), any());
-        Intent intent = intentCaptor.getValue();
-        assertEquals(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED, intent.getAction());
-    }
-
-    @Test
-    @SmallTest
     public void testSmsCbLocation() {
         final byte[] pdu = hexStringToBytes("01111B40110101C366701A09368545692408000000000000000"
                 + "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
