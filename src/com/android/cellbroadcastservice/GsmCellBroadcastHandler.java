@@ -64,6 +64,8 @@ import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage
 import com.android.cellbroadcastservice.GsmSmsCbMessage.GeoFencingTriggerMessage.CellBroadcastIdentity;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,7 +80,7 @@ import java.util.stream.IntStream;
  * Handler for 3GPP format Cell Broadcasts. Parent class can also handle CDMA Cell Broadcasts.
  */
 public class GsmCellBroadcastHandler extends CellBroadcastHandler {
-    private static final boolean VDBG_CB_PDU_DATA = false;  // log CB PDU data
+    private static final boolean VDBG = false;  // log CB PDU data
 
     /** Indicates that a message is not displayed. */
     private static final String MESSAGE_NOT_DISPLAYED = "0";
@@ -199,10 +201,11 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         public void onServiceStateChanged(@NonNull ServiceState serviceState) {
             int state = serviceState.getState();
             if (state == ServiceState.STATE_POWER_OFF
-                    || state == ServiceState.STATE_OUT_OF_SERVICE) {
+                    || state == ServiceState.STATE_OUT_OF_SERVICE
+                    || state == ServiceState.STATE_EMERGENCY_ONLY) {
                 synchronized (mAreaInfos) {
                     if (mAreaInfos.contains(mSlotId)) {
-                        log("OOS mSubId=" + mSubId + " mSlotId=" + mSlotId
+                        log("OOS state=" + state + " mSubId=" + mSubId + " mSlotId=" + mSlotId
                                 + ", clearing area infos");
                         mAreaInfos.remove(mSlotId);
                     }
@@ -440,8 +443,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
      * @return true if need to wait for geo-fencing or an ordered broadcast was sent.
      */
     @Override
-    @VisibleForTesting
-    public boolean handleSmsMessage(Message message) {
+    protected boolean handleSmsMessage(Message message) {
         // For GSM, message.obj should be a byte[]
         int slotIndex = message.arg1;
         if (message.obj instanceof byte[]) {
@@ -477,7 +479,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                     handleBroadcastSms(cbMessage);
                     return true;
                 }
-                if (VDBG_CB_PDU_DATA) log("Not handled GSM broadcasts.");
+                if (VDBG) log("Not handled GSM broadcasts.");
             }
         } else {
             final String errorMessage = "handleSmsMessage for GSM got object of type: "
@@ -590,7 +592,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     private SmsCbMessage handleGsmBroadcastSms(SmsCbHeader header, byte[] receivedPdu,
             int slotIndex) {
         try {
-            if (VDBG_CB_PDU_DATA) {
+            if (VDBG) {
                 int pduLength = receivedPdu.length;
                 for (int i = 0; i < pduLength; i += 8) {
                     StringBuilder sb = new StringBuilder("SMS CB pdu data: ");
@@ -605,7 +607,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 }
             }
 
-            if (VDBG_CB_PDU_DATA) log("header=" + header);
+            if (VDBG) log("header=" + header);
             TelephonyManager tm =
                     (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
             tm.createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
@@ -638,7 +640,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                     mSmsCbPageMap.put(concatInfo, pdus);
                 }
 
-                if (VDBG_CB_PDU_DATA) log("pdus size=" + pdus.length);
+                if (VDBG) log("pdus size=" + pdus.length);
                 // Page parameter is one-based
                 pdus[header.getPageIndex() - 1] = receivedPdu;
 
@@ -782,5 +784,13 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         public boolean matchesLocation(String plmn, int lac, int cid) {
             return mLocation.isInLocationArea(plmn, lac, cid);
         }
+    }
+
+    @Override
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("GsmCellBroadcastHandler:");
+        pw.println("  mAreaInfos=:" + mAreaInfos);
+        pw.println("  mSmsCbPageMap=:" + mSmsCbPageMap);
+        super.dump(fd, pw, args);
     }
 }
