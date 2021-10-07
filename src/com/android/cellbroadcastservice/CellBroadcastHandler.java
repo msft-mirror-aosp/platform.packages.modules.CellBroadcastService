@@ -46,7 +46,6 @@ import android.location.LocationRequest;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerExecutor;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
@@ -65,6 +64,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.HandlerExecutor;
 
 import java.io.File;
 import java.io.FileDescriptor;

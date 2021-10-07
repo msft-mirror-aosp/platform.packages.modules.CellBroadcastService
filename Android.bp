@@ -17,6 +17,11 @@ java_defaults {
         "unsupportedappusage",
     ],
     sdk_version: "module_current",
+    static_libs: [
+        "modules-utils-handlerexecutor",
+        "modules-utils-preconditions",
+        "modules-utils-statemachine",
+    ],
     certificate: "platform",
     privileged: true,
     resource_dirs: ["res"],
