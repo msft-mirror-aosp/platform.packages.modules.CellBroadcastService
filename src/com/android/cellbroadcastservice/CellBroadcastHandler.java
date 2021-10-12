@@ -46,7 +46,6 @@ import android.location.LocationRequest;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerExecutor;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
@@ -65,6 +64,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.HandlerExecutor;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -91,6 +91,11 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * CellBroadcast apex name
      */
     private static final String CB_APEX_NAME = "com.android.cellbroadcast";
+
+    /**
+     * CellBroadcast app platform name
+     */
+    private static final String CB_APP_PLATFORM_NAME = "CellBroadcastAppPlatform";
 
     /**
      * Path where CB apex is mounted (/apex/com.android.cellbroadcast)
@@ -130,7 +135,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     protected long mLastAirplaneModeTime = 0;
 
     /** Resource cache */
-    private final Map<Integer, Resources> mResourcesCache = new HashMap<>();
+    protected final Map<Integer, Resources> mResourcesCache = new HashMap<>();
 
     /** Whether performing duplicate detection or not. Note this is for debugging purposes only. */
     private boolean mEnableDuplicateDetection = true;
@@ -816,8 +821,9 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     /**
      * Checks if the app's path starts with CB_APEX_PATH
      */
-    private static boolean isAppInCBApex(ApplicationInfo appInfo) {
-        return appInfo.sourceDir.startsWith(CB_APEX_PATH);
+    private static boolean isAppInCBApexOrAlternativeApp(ApplicationInfo appInfo) {
+        return appInfo.sourceDir.startsWith(CB_APEX_PATH) ||
+               appInfo.sourceDir.contains(CB_APP_PLATFORM_NAME);
     }
 
     /**
@@ -830,7 +836,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
 
         // remove apps that don't live in the CellBroadcast apex
         cbrPackages.removeIf(info ->
-                !isAppInCBApex(info.activityInfo.applicationInfo));
+                !isAppInCBApexOrAlternativeApp(info.activityInfo.applicationInfo));
 
         if (cbrPackages.isEmpty()) {
             Log.e(TAG, "getCBRPackageNames: no package found");
@@ -1011,6 +1017,14 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
 
             if (!mLocationUpdateInProgress) {
                 try {
+                    // If the user does not turn on location, immediately report location
+                    // unavailable.
+                    if (!mLocationManager.isLocationEnabled()) {
+                        Log.d(mDebugTag, "Location is turned off.");
+                        callback.onLocationUnavailable();
+                        return;
+                    }
+
                     /* We will continue to send updates until the location timeout is reached. The
                     location timeout case is handled through onLocationUnavailable. */
                     LocationRequest request = LocationRequest.create()
