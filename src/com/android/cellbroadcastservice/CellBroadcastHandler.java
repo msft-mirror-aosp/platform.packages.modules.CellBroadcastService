@@ -275,7 +275,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             intentFilter.addAction(ACTION_DUPLICATE_DETECTION);
         }
 
-        mContext.registerReceiver(mReceiver, intentFilter);
+        mContext.registerReceiver(mReceiver, intentFilter, Context.RECEIVER_EXPORTED);
     }
 
     public void cleanup() {
