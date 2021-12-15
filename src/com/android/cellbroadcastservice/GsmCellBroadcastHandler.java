@@ -149,7 +149,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
         // set the resources cache here for unit tests
         mResourcesCache.put(subId, resources);
-        loadConfig(SubscriptionManager.getDefaultSubscriptionId());
+        loadConfig(subId);
     }
 
     @Override
