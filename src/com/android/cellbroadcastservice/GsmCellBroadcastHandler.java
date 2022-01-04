@@ -36,7 +36,6 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Telephony.CellBroadcasts;
 import android.telephony.AccessNetworkConstants;
-import android.telephony.CarrierConfigManager;
 import android.telephony.CbGeoUtils;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CellBroadcastIntents;
@@ -150,7 +149,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
         // set the resources cache here for unit tests
         mResourcesCache.put(subId, resources);
-        loadConfig(SubscriptionManager.getDefaultSubscriptionId());
+        loadConfig(subId);
     }
 
     @Override
@@ -164,6 +163,10 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     private void loadConfig(int subId) {
         // Some OEMs want us to reset the area info updates when going out of service.
         // The config is loaded from the resource of the default sub id.
+        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+            log("subId[" + subId + "] is not valid");
+            return;
+        }
         boolean isResetAreaInfoOnOos = getResources(subId)
                 .getBoolean(R.bool.reset_area_info_on_oos);
         if (mIsResetAreaInfoOnOos != isResetAreaInfoOnOos) {
