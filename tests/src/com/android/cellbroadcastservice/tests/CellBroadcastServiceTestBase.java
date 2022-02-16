@@ -46,7 +46,6 @@ import junit.framework.TestCase;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.stubbing.Answer;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -144,18 +143,15 @@ public class CellBroadcastServiceTestBase extends TestCase {
                 .getSubscriptionIds(anyInt());
         doReturn(mMockedTelephonyManager).when(mMockedTelephonyManager)
                 .createForSubscriptionId(anyInt());
-        Answer<Intent> registerReceiverAnswer = invocation -> {
+        doAnswer(invocation -> {
             BroadcastReceiver receiver = invocation.getArgument(0);
             IntentFilter intentFilter = invocation.getArgument(1);
             for (int i = 0; i < intentFilter.countActions(); i++) {
                 mBroadcastReceiversByAction.put(intentFilter.getAction(i), receiver);
             }
             return null;
-        };
-        doAnswer(registerReceiverAnswer).when(mMockedContext).registerReceiver(
+        }).when(mMockedContext).registerReceiver(
                 any(BroadcastReceiver.class), any(IntentFilter.class));
-        doAnswer(registerReceiverAnswer).when(mMockedContext).registerReceiver(
-                any(BroadcastReceiver.class), any(IntentFilter.class), any(int.class));
     }
 
     protected void tearDown() throws Exception {
