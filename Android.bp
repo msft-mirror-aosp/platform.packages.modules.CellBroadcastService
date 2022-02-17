@@ -9,14 +9,20 @@ java_defaults {
     target_sdk_version: "31",
     srcs: [
       "src/**/*.java",
-      ":framework-annotations",
       ":framework-cellbroadcast-shared-srcs",
       ":statslog-cellbroadcast-java-gen",
     ],
     libs: [
+        "framework-annotations-lib",
+        "framework-statsd",
         "unsupportedappusage",
     ],
-    sdk_version: "system_current",
+    sdk_version: "module_current",
+    static_libs: [
+        "modules-utils-handlerexecutor",
+        "modules-utils-preconditions",
+        "modules-utils-statemachine",
+    ],
     certificate: "platform",
     privileged: true,
     resource_dirs: ["res"],
