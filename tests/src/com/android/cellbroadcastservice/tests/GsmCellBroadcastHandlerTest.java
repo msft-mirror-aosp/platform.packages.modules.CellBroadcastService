@@ -484,6 +484,15 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         assertEquals("", mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
     }
 
+    @Test
+    @SmallTest
+    public void testDoNotResetAreaInfoWithInvalidSubId() {
+        new GsmCellBroadcastHandler(mMockedContext,
+                mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper, mMockedResources,
+                SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+        verify(mMockedContext, never()).getResources();
+    }
+
     /* Below are helper methods for setting up mocks, verifying actions, etc. */
 
     private void verifyBroadcastSent(CbSendMessageCalculator mockCalculator) {
