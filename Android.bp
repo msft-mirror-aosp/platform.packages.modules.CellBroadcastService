@@ -42,7 +42,6 @@ android_app {
     certificate: "networkstack",
     manifest: "AndroidManifest.xml",
     apex_available: ["com.android.cellbroadcast"],
-    required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
 }
 
 android_app {
@@ -53,7 +52,6 @@ android_app {
      // which consists of CellBroadcastServiceModule
      overrides: ["com.android.cellbroadcast"],
      manifest: "AndroidManifest_Platform.xml",
-     required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
 }
 
 genrule {
