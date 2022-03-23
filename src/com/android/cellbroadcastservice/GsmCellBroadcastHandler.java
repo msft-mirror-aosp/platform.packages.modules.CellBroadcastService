@@ -123,7 +123,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
+                CBR_MODULE_PERMISSION, null);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
@@ -142,7 +142,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
+                CBR_MODULE_PERMISSION, null);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
