@@ -110,7 +110,9 @@ public class CellBroadcastProvider extends ContentProvider {
             CellBroadcasts.MESSAGE_FORMAT,
             CellBroadcasts.MESSAGE_PRIORITY,
             CellBroadcasts.ETWS_WARNING_TYPE,
-            CellBroadcasts.ETWS_IS_PRIMARY,
+            // TODO: Remove the hardcode and make this system API in S.
+            // CellBroadcasts.ETWS_IS_PRIMARY,
+            "etws_is_primary",
             CellBroadcasts.CMAS_MESSAGE_CLASS,
             CellBroadcasts.CMAS_CATEGORY,
             CellBroadcasts.CMAS_RESPONSE_TYPE,
@@ -355,7 +357,8 @@ public class CellBroadcastProvider extends ContentProvider {
                 + CellBroadcasts.MESSAGE_FORMAT + " INTEGER,"
                 + CellBroadcasts.MESSAGE_PRIORITY + " INTEGER,"
                 + CellBroadcasts.ETWS_WARNING_TYPE + " INTEGER,"
-                + CellBroadcasts.ETWS_IS_PRIMARY + " BOOLEAN DEFAULT 0,"
+                // TODO: Use system API CellBroadcasts.ETWS_IS_PRIMARY in S.
+                + "etws_is_primary" + " BOOLEAN DEFAULT 0,"
                 + CellBroadcasts.CMAS_MESSAGE_CLASS + " INTEGER,"
                 + CellBroadcasts.CMAS_CATEGORY + " INTEGER,"
                 + CellBroadcasts.CMAS_RESPONSE_TYPE + " INTEGER,"
@@ -440,7 +443,8 @@ public class CellBroadcastProvider extends ContentProvider {
 
             if (oldVersion < 4) {
                 db.execSQL("ALTER TABLE " + CELL_BROADCASTS_TABLE_NAME + " ADD COLUMN "
-                        + CellBroadcasts.ETWS_IS_PRIMARY + " BOOLEAN DEFAULT 0;");
+                        // TODO: Use system API CellBroadcasts.ETWS_IS_PRIMARY in S.
+                        + "etws_is_primary" + " BOOLEAN DEFAULT 0;");
                 Log.d(TAG, "add ETWS is_primary column.");
             }
         }

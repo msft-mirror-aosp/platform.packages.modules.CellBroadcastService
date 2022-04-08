@@ -45,13 +45,10 @@ import android.telephony.AccessNetworkConstants;
 import android.telephony.CbGeoUtils;
 import android.telephony.CellIdentityLte;
 import android.telephony.NetworkRegistrationInfo;
-import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
-import android.telephony.SubscriptionInfo;
-import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
@@ -88,9 +85,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Mock
     private Map<Integer, Resources> mMockedResourcesCache;
-
-    @Mock
-    private SubscriptionInfo mSubInfo;
 
     private CellBroadcastHandlerTest.CbSendMessageCalculatorFactoryFacade mSendMessageFactory;
 
@@ -195,11 +189,7 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         putResources(
                 com.android.cellbroadcastservice.R.array.config_area_info_receiver_packages,
                 new String[]{"fake.inforeceiver.pkg"});
-        putResources(com.android.cellbroadcastservice.R.bool.reset_area_info_on_oos, true);
-        doReturn(1).when(mMockedTelephonyManager).getActiveModemCount();
-        doReturn(mSubInfo).when(mMockedSubscriptionManager)
-                .getActiveSubscriptionInfoForSimSlotIndex(anyInt());
-        doReturn(FAKE_SUBID).when(mSubInfo).getSubscriptionId();
+
         mGsmCellBroadcastHandler = new GsmCellBroadcastHandler(mMockedContext,
                 mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper, mMockedResources,
                 FAKE_SUBID);
@@ -288,6 +278,47 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
         verify(mMockedContext, never()).sendOrderedBroadcast(any(), anyString(), anyString(),
                 any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @SmallTest
+    public void testGeofencingAmgiguous() {
+        CbSendMessageCalculator mockCalculator = mock(CbSendMessageCalculator.class);
+        CellBroadcastHandler.CbSendMessageCalculatorFactory factory = mock(
+                CellBroadcastHandler.CbSendMessageCalculatorFactory.class);
+        mSendMessageFactory.setUnderlyingFactory(factory);
+        doReturn(mockCalculator).when(factory).createNew(any(), any());
+        doReturn(CbSendMessageCalculator.SEND_MESSAGE_ACTION_AMBIGUOUS)
+                .when(mockCalculator)
+                .getAction();
+
+        // This method is copied form #testGeofencingAlertOutOfPolygon that does NOT send a message.
+        // Except, in this case, we are overriding the calculator with DONT_SEND and so our
+        // verification is that a broadcast was sent.
+        final byte[] pdu = hexStringToBytes("01111D7090010254747A0E4ACF416110B538A582DE6650906AA28"
+                + "2AE6979995D9ECF41C576597E2EBBC77950905D96D3D3EE33689A9FD3CB6D1708CA2E87E76550FAE"
+                + "C7ECBCB203ABA0C6A97E7F3F0B9EC02C15CB5769A5D0652A030FB1ECECF5D5076393C2F83C8E9B9B"
+                + "C7C0ECBC9203A3A3D07B5CBF379F85C06E16030580D660BB662B51A0D57CC3500000000000000000"
+                + "0000000000000000000000000000000000000000000000000003021002078B53B6CA4B84B53988A4"
+                + "B86B53958A4C2DB53B54A4C28B53B6CA4B840100CFF");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu);
+        mTestableLooper.processAllMessages();
+
+        ArgumentCaptor<LocationListener> listenerCaptor =
+                ArgumentCaptor.forClass(LocationListener.class);
+        verify(mMockedLocationManager).requestLocationUpdates(
+                any(LocationRequest.class), any(), listenerCaptor.capture());
+
+        LocationListener listener = listenerCaptor.getValue();
+        listener.onLocationChanged(mock(Location.class));
+
+        runLocationUnavailableWhenMaxTimeReached();
+
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mMockedContext).sendOrderedBroadcast(intentCaptor.capture(), any(),
+                (Bundle) any(), any(), any(), anyInt(), any(), any());
+        Intent intent = intentCaptor.getValue();
+        assertEquals(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED, intent.getAction());
     }
 
     @Test
@@ -459,29 +490,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
         assertLocationRequestCancelled();
         verifyBroadcastNotSent(mockCalculator);
-    }
-
-    @Test
-    @SmallTest
-    public void testResetAreaInfoOnOutOfService() {
-        String areaInfo = "0000000000000000";
-        mGsmCellBroadcastHandler.setCellBroadcastAreaInfo(0, areaInfo);
-        assertEquals(areaInfo, mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
-
-        Intent intent = new Intent(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED);
-        intent.putExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID);
-        sendBroadcast(intent);
-        ArgumentCaptor<PhoneStateListener> listenerCaptor =
-                ArgumentCaptor.forClass(PhoneStateListener.class);
-        mTestableLooper.processAllMessages();
-        verify(mMockedTelephonyManager).listen(listenerCaptor.capture(), anyInt());
-
-        PhoneStateListener listener = listenerCaptor.getValue();
-        ServiceState ss = mock(ServiceState.class);
-        doReturn(ServiceState.STATE_OUT_OF_SERVICE).when(ss).getState();
-        listener.onServiceStateChanged(ss);
-
-        assertEquals("", mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
     }
 
     /* Below are helper methods for setting up mocks, verifying actions, etc. */
