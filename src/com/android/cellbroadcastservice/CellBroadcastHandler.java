@@ -46,7 +46,6 @@ import android.location.LocationRequest;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerExecutor;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
@@ -65,6 +64,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.HandlerExecutor;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -134,7 +134,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     /** Timestamp of last airplane mode on */
     protected long mLastAirplaneModeTime = 0;
 
-    /** Resource cache */
+    /** Resource cache used for test purpose, to be removed by b/223644462 */
     protected final Map<Integer, Resources> mResourcesCache = new HashMap<>();
 
     /** Whether performing duplicate detection or not. Note this is for debugging purposes only. */
@@ -275,7 +275,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             intentFilter.addAction(ACTION_DUPLICATE_DETECTION);
         }
 
-        mContext.registerReceiver(mReceiver, intentFilter);
+        mContext.registerReceiver(mReceiver, intentFilter, Context.RECEIVER_EXPORTED);
     }
 
     public void cleanup() {
@@ -875,10 +875,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             return mResourcesCache.get(subId);
         }
 
-        Resources res = SubscriptionManager.getResourcesForSubId(mContext, subId);
-        mResourcesCache.put(subId, res);
-
-        return res;
+        return SubscriptionManager.getResourcesForSubId(mContext, subId);
     }
 
     @Override
