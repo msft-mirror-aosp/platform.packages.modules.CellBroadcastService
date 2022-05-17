@@ -36,7 +36,6 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Telephony.CellBroadcasts;
 import android.telephony.AccessNetworkConstants;
-import android.telephony.CarrierConfigManager;
 import android.telephony.CbGeoUtils;
 import android.telephony.CbGeoUtils.Geometry;
 import android.telephony.CellBroadcastIntents;
@@ -124,7 +123,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null);
+                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
@@ -143,14 +142,14 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null);
+                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
 
         // set the resources cache here for unit tests
         mResourcesCache.put(subId, resources);
-        loadConfig(SubscriptionManager.getDefaultSubscriptionId());
+        loadConfig(subId);
     }
 
     @Override
@@ -164,6 +163,10 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     private void loadConfig(int subId) {
         // Some OEMs want us to reset the area info updates when going out of service.
         // The config is loaded from the resource of the default sub id.
+        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+            log("subId[" + subId + "] is not valid");
+            return;
+        }
         boolean isResetAreaInfoOnOos = getResources(subId)
                 .getBoolean(R.bool.reset_area_info_on_oos);
         if (mIsResetAreaInfoOnOos != isResetAreaInfoOnOos) {
