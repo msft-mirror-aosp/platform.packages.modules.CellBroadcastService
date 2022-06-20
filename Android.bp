@@ -9,7 +9,6 @@ java_defaults {
     target_sdk_version: "31",
     srcs: [
       "src/**/*.java",
-      ":framework-cellbroadcast-shared-srcs",
       ":statslog-cellbroadcast-java-gen",
     ],
     libs: [
@@ -20,6 +19,7 @@ java_defaults {
     sdk_version: "module_current",
     static_libs: [
         "modules-utils-handlerexecutor",
+        "modules-utils-locallog",
         "modules-utils-preconditions",
         "modules-utils-statemachine",
     ],
@@ -90,7 +90,6 @@ filegroup {
     name: "cellbroadcast-shared-srcs",
     srcs: [
         "src/**/*.java",
-        ":framework-cellbroadcast-shared-srcs",
         ":statslog-cellbroadcast-java-gen",
     ],
 }
