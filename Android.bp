@@ -9,7 +9,6 @@ java_defaults {
     target_sdk_version: "31",
     srcs: [
       "src/**/*.java",
-      ":framework-cellbroadcast-shared-srcs",
       ":statslog-cellbroadcast-java-gen",
     ],
     libs: [
@@ -20,6 +19,7 @@ java_defaults {
     sdk_version: "module_current",
     static_libs: [
         "modules-utils-handlerexecutor",
+        "modules-utils-locallog",
         "modules-utils-preconditions",
         "modules-utils-statemachine",
     ],
@@ -42,6 +42,7 @@ android_app {
     certificate: "networkstack",
     manifest: "AndroidManifest.xml",
     apex_available: ["com.android.cellbroadcast"],
+    required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
 }
 
 android_app {
@@ -52,6 +53,7 @@ android_app {
      // which consists of CellBroadcastServiceModule
      overrides: ["com.android.cellbroadcast"],
      manifest: "AndroidManifest_Platform.xml",
+     required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
 }
 
 genrule {
@@ -88,7 +90,6 @@ filegroup {
     name: "cellbroadcast-shared-srcs",
     srcs: [
         "src/**/*.java",
-        ":framework-cellbroadcast-shared-srcs",
         ":statslog-cellbroadcast-java-gen",
     ],
 }
