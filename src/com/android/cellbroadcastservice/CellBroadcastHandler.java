@@ -377,9 +377,11 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                     }
                     performGeoFencing(message, uri, calculator, location, slotIndex,
                             accuracy);
-                    if (!isMessageInAmbiguousState(calculator)) {
-                        cancelLocationRequest();
-                    }
+                }
+
+                @Override
+                public boolean areAllMessagesHandled() {
+                    return !isMessageInAmbiguousState(calculator);
                 }
 
                 @Override
@@ -409,13 +411,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     protected boolean isMessageInAmbiguousState(CbSendMessageCalculator calculator) {
         return calculator.getAction() == SEND_MESSAGE_ACTION_AMBIGUOUS
                 || calculator.getAction() == SEND_MESSAGE_ACTION_NO_COORDINATES;
-    }
-
-    /**
-     * Cancels the location request
-     */
-    protected void cancelLocationRequest() {
-        this.mLocationRequester.cancel();
     }
 
     /**
@@ -678,6 +673,14 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     }
 
     /**
+     * send message that broadcast is not required due to geo-fencing check
+     */
+    @VisibleForTesting
+    public void sendMessageBroadcastNotRequired() {
+        sendMessage(EVENT_BROADCAST_NOT_REQUIRED);
+    }
+
+    /**
      * Requests a stream of updates for {@code maximumWaitTimeSec} seconds.
      * @param callback the callback used to communicate back to the caller
      * @param maximumWaitTimeSec the maximum wait time of this request. If location is not updated
@@ -920,6 +923,11 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
          *   3. The LocationRequester was explicitly cancelled.
          */
         void onLocationUnavailable();
+
+        /**
+         * Returns true if all messages are handled.
+         */
+        boolean areAllMessagesHandled();
     }
 
     private static final class LocationRequester {
@@ -985,8 +993,14 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 Log.d(mDebugTag, "onLocationUpdate: received location update");
             }
 
+            boolean canCancel = true;
             for (LocationUpdateCallback callback : mCallbacks) {
                 callback.onLocationUpdate(latLng, accuracy);
+                canCancel = canCancel && callback.areAllMessagesHandled();
+            }
+            if (canCancel) {
+                Log.d(mDebugTag, "call cancel because all messages are handled.");
+                cancel();
             }
         }
 
