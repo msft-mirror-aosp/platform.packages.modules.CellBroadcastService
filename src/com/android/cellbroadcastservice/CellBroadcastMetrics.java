@@ -130,56 +130,56 @@ public class CellBroadcastMetrics {
 
     // Values for CellBroadcastError.source
     public static final int ERRSRC_UNKNOWN =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__SOURCE__UNKNOWN_SOURCE;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__SOURCE__UNKNOWN_SOURCE;
     public static final int ERRSRC_FWK =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__SOURCE__FRAMEWORK;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__SOURCE__FRAMEWORK;
     public static final int ERRSRC_CBS =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__SOURCE__CB_SERVICE;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__SOURCE__CB_SERVICE;
     public static final int ERRSRC_CBR =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__SOURCE__CB_RECEIVER_APP;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__SOURCE__CB_RECEIVER_APP;
 
     // Values for CellBroadcastError.type
     public static final int ERRTYPE_UNKNOWN =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_UNKNOWN;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_UNKNOWN;
     public static final int ERRTYPE_BADCONFIG =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_BAD_CONFIG;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_BAD_CONFIG;
     public static final int ERRTYPE_DBMIGRATION =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_DB_MIGRATION;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_DB_MIGRATION;
     public static final int ERRTYPE_DEFAULTRES =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_DEFAULT_RES;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_DEFAULT_RES;
     public static final int ERRTYPE_ENABLECHANNEL =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_ENABLE_CHANNEL;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_ENABLE_CHANNEL;
     public static final int ERRTYPE_GETLOCATION =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_GET_LOCATION;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_GET_LOCATION;
     public static final int ERRTYPE_MISSINGRES =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_MISSING_RES;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_MISSING_RES;
     public static final int ERRTYPE_PLAYFLASH =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_PLAY_FLASH;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_PLAY_FLASH;
     public static final int ERRTYPE_PLAYSOUND =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_PLAY_SOUND;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_PLAY_SOUND;
     public static final int ERRTYPE_PLAYTTS =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_PLAY_TTS;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_PLAY_TTS;
     public static final int ERRTYPE_PREFMIGRATION =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_PREF_MIGRATION;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_PREF_MIGRATION;
     public static final int ERRTYPE_PROVIDERINIT =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_PROVIDER_INIT;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_PROVIDER_INIT;
     public static final int ERRTYPE_CHANNEL_R =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_RESET_CHANNEL_R;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_RESET_CHANNEL_R;
     public static final int ERRTYPE_STATUSBAR =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_STATUS_BAR;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_STATUS_BAR;
     public static final int ERRTYPE_REMINDERINTERVAL =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_REMINDER_INTERVAL;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_REMINDER_INTERVAL;
     public static final int ERRTYPE_ICONRESOURCE =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_ICON_RESOURCE;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_ICON_RESOURCE;
     public static final int ERRTYPE_CHANNELRANGEPARSE =
             CellBroadcastModuleStatsLog
-                    .CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_CHANNEL_RANGE_PARSE;
+                    .CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_CHANNEL_RANGE_PARSE;
     public static final int ERRTYPE_DBINIT =
-            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_DB_INIT;
+            CellBroadcastModuleStatsLog.CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_DB_INIT;
     public static final int ERRTYPE_NOTFOUND_DEFAULTCBRPKGS =
             CellBroadcastModuleStatsLog
-                    .CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_NOT_FOUND_DEFAULT_CBR_PKGS;
+                    .CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_NOT_FOUND_DEFAULT_CBR_PKGS;
     public static final int ERRTYPE_FOUND_MULTIPLECBRPKGS =
             CellBroadcastModuleStatsLog
-                    .CELL_BROADCAST_MODULE_ERROR__TYPE__ERROR_FOUND_MULTIPLE_CBR_PKGS;
+                    .CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_FOUND_MULTIPLE_CBR_PKGS;
 }
