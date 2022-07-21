@@ -69,7 +69,6 @@ public class CellBroadcastServiceMetricsTest extends CellBroadcastServiceTestBas
 
     @Test
     public void testGetFeatureMetrics() {
-        doReturn(null).when(mMockedContext).getSharedPreferences(anyString(), anyInt());
         CellBroadcastServiceMetrics.FeatureMetrics test1 =
                 CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mMockedContext);
         CellBroadcastServiceMetrics.FeatureMetrics test2 =
@@ -81,8 +80,6 @@ public class CellBroadcastServiceMetricsTest extends CellBroadcastServiceTestBas
         assertFalse(test1.isOverrideAreaInfoPkgs());
         assertFalse(test1.isResetAreaInfo());
 
-        doReturn(mSharedPreference).when(mMockedContext)
-                .getSharedPreferences(anyString(), anyInt());
         doReturn(true).when(mSharedPreference)
                 .getBoolean(eq(ADDITIONAL_CBR_PACKAGES), anyBoolean());
         doReturn(false).when(mSharedPreference)
