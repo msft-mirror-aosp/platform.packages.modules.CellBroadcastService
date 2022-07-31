@@ -166,7 +166,7 @@ public class CellBroadcastServiceMetrics {
         @VisibleForTesting
         public void logFeatureChanged() {
             CellBroadcastModuleStatsLog.write(
-                    CellBroadcastModuleStatsLog.CB_SERVICE_FEATURE,
+                    CellBroadcastModuleStatsLog.CB_SERVICE_FEATURE_CHANGED,
                     mIsOverrideCbrPkgs,
                     mIsOverrideAreaInfoPkgs,
                     mResetAreaInfo);
@@ -308,7 +308,7 @@ public class CellBroadcastServiceMetrics {
         if (VDBG) {
             Log.d(TAG, "logModuleError : " + source + " " + errorType);
         }
-        CellBroadcastModuleStatsLog.write(CellBroadcastModuleStatsLog.CB_MODULE_ERROR, source,
-                errorType);
+        CellBroadcastModuleStatsLog.write(CellBroadcastModuleStatsLog.CB_MODULE_ERROR_REPORTED,
+                source, errorType);
     }
 }
