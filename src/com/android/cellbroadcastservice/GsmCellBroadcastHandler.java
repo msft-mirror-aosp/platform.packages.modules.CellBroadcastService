@@ -413,12 +413,13 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                                 calculator, location, slotIndex, accuracy);
                     }
                 }
+            }
 
+            @Override
+            public boolean areAllMessagesHandled() {
                 boolean containsAnyAmbiguousMessages = Arrays.stream(calculators)
                         .anyMatch(c -> isMessageInAmbiguousState(c));
-                if (!containsAnyAmbiguousMessages) {
-                    cancelLocationRequest();
-                }
+                return !containsAnyAmbiguousMessages;
             }
 
             @Override
