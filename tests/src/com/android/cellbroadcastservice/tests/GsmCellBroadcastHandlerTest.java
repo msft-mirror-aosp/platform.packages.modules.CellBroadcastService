@@ -463,6 +463,56 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Test
     @SmallTest
+    public void testConsecutiveGeofencingTriggerMessages() throws Exception {
+        final byte[] pdu = hexStringToBytes("0001113001010010C0111204D2");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu);
+        mTestableLooper.processAllMessages();
+        LocationListener listener = getLocationCallback();
+        mGsmCellBroadcastHandler.sendMessageBroadcastNotRequired();
+
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu);
+        mTestableLooper.processAllMessages();
+
+        listener.onLocationChanged(mock(Location.class));
+
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mMockedContext, times(2)).sendOrderedBroadcast(intentCaptor.capture(), any(),
+                (Bundle) any(), any(), any(), anyInt(), any(), any());
+        Intent intent = intentCaptor.getValue();
+        assertEquals(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED, intent.getAction());
+        SmsCbMessage msg = intent.getParcelableExtra("message");
+
+        assertEquals(SmsCbConstants.MESSAGE_ID_CMAS_ALERT_PRESIDENTIAL_LEVEL,
+                msg.getServiceCategory());
+        assertEquals(1234, msg.getSerialNumber());
+        assertEquals("Test Message", msg.getMessageBody());
+    }
+
+    @Test
+    @SmallTest
+    public void testConsecutiveGeoFencingMessages() throws Exception {
+        CbSendMessageCalculator mockCalculator = createMockCalculatorAndSendCellBroadcast();
+        mGsmCellBroadcastHandler.sendMessageBroadcastNotRequired();
+        CbSendMessageCalculator mockCalculator2 = createMockCalculatorAndSendCellBroadcast();
+
+        ArgumentCaptor<List<CbGeoUtils.Geometry>> geosCaptor =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(mSendMessageFactory.getUnderlyingFactory()).createNew(any(), geosCaptor.capture());
+        List<CbGeoUtils.Geometry> geos = geosCaptor.getValue();
+        assertEquals(1, geos.size());
+        doReturn(geos).when(mockCalculator).getFences();
+
+        // Set the new action to return
+        doReturn(CbSendMessageCalculator.SEND_MESSAGE_ACTION_DONT_SEND).when(mockCalculator2)
+                .getAction();
+
+        // Set location to SEND
+        setMockCalculation(mockCalculator, CbSendMessageCalculator.SEND_MESSAGE_ACTION_SEND,
+                true, true);
+    }
+
+    @Test
+    @SmallTest
     public void testResetAreaInfoOnOutOfService() {
         String areaInfo = "0000000000000000";
         mGsmCellBroadcastHandler.setCellBroadcastAreaInfo(0, areaInfo);
