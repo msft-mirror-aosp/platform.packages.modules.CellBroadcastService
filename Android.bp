@@ -6,10 +6,10 @@ package {
 java_defaults {
     name: "CellBroadcastServiceCommon",
     min_sdk_version: "30",
-    target_sdk_version: "33",
+    target_sdk_version: "31",
     srcs: [
       "src/**/*.java",
-      ":statslog-cellbroadcast-module-java-gen",
+      ":statslog-cellbroadcast-java-gen",
     ],
     libs: [
         "framework-annotations-lib",
@@ -65,22 +65,13 @@ genrule {
   out: ["com/android/cellbroadcastservice/CellBroadcastStatsLog.java"],
 }
 
-genrule {
-  name: "statslog-cellbroadcast-module-java-gen",
-  tools: ["stats-log-api-gen"],
-  cmd: "$(location stats-log-api-gen) --java $(out) --module cellbroadcast" +
-       " --javaPackage com.android.cellbroadcastservice --javaClass CellBroadcastModuleStatsLog" +
-       " --minApiLevel 30",
-  out: ["com/android/cellbroadcastservice/CellBroadcastModuleStatsLog.java"],
-}
 
 // used to share common constants between cellbroadcastservice and cellbroadcastreceier
 filegroup {
     name: "cellbroadcast-constants-shared-srcs",
     srcs: [
         "src/com/android/cellbroadcastservice/SmsCbConstants.java",
-        "src/com/android/cellbroadcastservice/CellBroadcastMetrics.java",
-        ":statslog-cellbroadcast-module-java-gen",
+        ":statslog-cellbroadcast-java-gen",
     ],
 }
 
@@ -91,7 +82,6 @@ filegroup {
         "src/com/android/cellbroadcastservice/GsmAlphabet.java",
         "src/com/android/cellbroadcastservice/CbGeoUtils.java",
         "src/com/android/cellbroadcastservice/SmsCbHeader.java",
-        "src/com/android/cellbroadcastservice/CellBroadcastServiceMetrics.java",
     ],
 }
 
@@ -100,6 +90,6 @@ filegroup {
     name: "cellbroadcast-shared-srcs",
     srcs: [
         "src/**/*.java",
-        ":statslog-cellbroadcast-module-java-gen",
+        ":statslog-cellbroadcast-java-gen",
     ],
 }

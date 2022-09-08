@@ -24,12 +24,7 @@ import static com.android.cellbroadcastservice.CbSendMessageCalculator.SEND_MESS
 import static com.android.cellbroadcastservice.CbSendMessageCalculator.SEND_MESSAGE_ACTION_NO_COORDINATES;
 import static com.android.cellbroadcastservice.CbSendMessageCalculator.SEND_MESSAGE_ACTION_SEND;
 import static com.android.cellbroadcastservice.CbSendMessageCalculator.SEND_MESSAGE_ACTION_SENT;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRSRC_CBS;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRTYPE_FOUND_MULTIPLECBRPKGS;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRTYPE_NOTFOUND_DEFAULTCBRPKGS;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERR_UNEXPECTED_CDMA_MSG_FROM_FWK;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_DUPLICATE;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_GEOFENCED;
+import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__UNEXPECTED_CDMA_MESSAGE_TYPE_FROM_FWK;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -134,8 +129,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     private final LocationRequester mLocationRequester;
 
     /** Used to inject new calculators during unit testing */
-    @NonNull
-    protected final CbSendMessageCalculatorFactory mCbSendMessageCalculatorFactory;
+    @NonNull protected final CbSendMessageCalculatorFactory mCbSendMessageCalculatorFactory;
 
     /** Timestamp of last airplane mode on */
     protected long mLastAirplaneModeTime = 0;
@@ -190,9 +184,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
 
         /**
          * Creates new calculator
-         *
          * @param context context
-         * @param fences  the geo fences to use in the calculator
+         * @param fences the geo fences to use in the calculator
          * @return a new instance of the calculator
          */
         public CbSendMessageCalculator createNew(@NonNull final Context context,
@@ -315,17 +308,18 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 handleBroadcastSms((SmsCbMessage) message.obj);
                 return true;
             } else {
-                CellBroadcastServiceMetrics.getInstance()
-                        .logMessageFiltered(FILTER_DUPLICATE, (SmsCbMessage) message.obj);
-
+                CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_FILTERED,
+                        CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__TYPE__CDMA,
+                        CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__FILTER__DUPLICATE_MESSAGE);
             }
             return false;
         } else {
             final String errorMessage =
                     "handleSmsMessage got object of type: " + message.obj.getClass().getName();
             loge(errorMessage);
-            CellBroadcastServiceMetrics.getInstance().logMessageError(
-                    ERR_UNEXPECTED_CDMA_MSG_FROM_FWK, errorMessage);
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
+                    CELL_BROADCAST_MESSAGE_ERROR__TYPE__UNEXPECTED_CDMA_MESSAGE_TYPE_FROM_FWK,
+                    errorMessage);
             return false;
         }
     }
@@ -377,11 +371,9 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                     }
                     performGeoFencing(message, uri, calculator, location, slotIndex,
                             accuracy);
-                }
-
-                @Override
-                public boolean areAllMessagesHandled() {
-                    return !isMessageInAmbiguousState(calculator);
+                    if (!isMessageInAmbiguousState(calculator)) {
+                        cancelLocationRequest();
+                    }
                 }
 
                 @Override
@@ -411,6 +403,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     protected boolean isMessageInAmbiguousState(CbSendMessageCalculator calculator) {
         return calculator.getAction() == SEND_MESSAGE_ACTION_AMBIGUOUS
                 || calculator.getAction() == SEND_MESSAGE_ACTION_NO_COORDINATES;
+    }
+
+    /**
+     * Cancels the location request
+     */
+    protected void cancelLocationRequest() {
+        this.mLocationRequester.cancel();
     }
 
     /**
@@ -663,20 +662,17 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         }
     }
 
-    protected void geofenceMessageNotRequired(SmsCbMessage msg) {
-        if (msg.getMessageFormat() == SmsCbMessage.MESSAGE_FORMAT_3GPP) {
-            CellBroadcastServiceMetrics.getInstance().logMessageFiltered(FILTER_GEOFENCED, msg);
-        } else if (msg.getMessageFormat() == SmsCbMessage.MESSAGE_FORMAT_3GPP2) {
-            CellBroadcastServiceMetrics.getInstance().logMessageFiltered(FILTER_GEOFENCED, msg);
+    protected void geofenceMessageNotRequired(SmsCbMessage message) {
+        if (message.getMessageFormat() == SmsCbMessage.MESSAGE_FORMAT_3GPP) {
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_FILTERED,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__TYPE__GSM,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__FILTER__GEOFENCED_MESSAGE);
+        } else if (message.getMessageFormat() == SmsCbMessage.MESSAGE_FORMAT_3GPP2) {
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_FILTERED,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__TYPE__CDMA,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__FILTER__GEOFENCED_MESSAGE);
         }
-        sendMessage(EVENT_BROADCAST_NOT_REQUIRED);
-    }
 
-    /**
-     * send message that broadcast is not required due to geo-fencing check
-     */
-    @VisibleForTesting
-    public void sendMessageBroadcastNotRequired() {
         sendMessage(EVENT_BROADCAST_NOT_REQUIRED);
     }
 
@@ -794,8 +790,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                     R.array.additional_cell_broadcast_receiver_packages)));
             if (pkgs != null) {
                 mReceiverCount.addAndGet(pkgs.size());
-                CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
-                        .onChangedAdditionalCbrPackage(pkgs.size() > 1 ? true : false);
                 for (String pkg : pkgs) {
                     // Explicitly send the intent to all the configured cell broadcast receivers.
                     intent.setPackage(pkg);
@@ -824,8 +818,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
                     CellBroadcasts._ID + "=?", new String[] {messageUri.getLastPathSegment()});
         }
-
-        CellBroadcastServiceMetrics.getInstance().logFeatureChangedAsNeeded(mContext);
     }
 
     /**
@@ -849,16 +841,12 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 !isAppInCBApexOrAlternativeApp(info.activityInfo.applicationInfo));
 
         if (cbrPackages.isEmpty()) {
-            CellBroadcastServiceMetrics.getInstance().logModuleError(
-                    ERRSRC_CBS, ERRTYPE_NOTFOUND_DEFAULTCBRPKGS);
             Log.e(TAG, "getCBRPackageNames: no package found");
             return null;
         }
 
         if (cbrPackages.size() > 1) {
             // multiple apps found, log an error but continue
-            CellBroadcastServiceMetrics.getInstance().logModuleError(
-                    ERRSRC_CBS, ERRTYPE_FOUND_MULTIPLECBRPKGS);
             Log.e(TAG, "Found > 1 APK in CB apex that can resolve " + intent.getAction() + ": "
                     + cbrPackages.stream()
                     .map(info -> info.activityInfo.applicationInfo.packageName)
@@ -923,11 +911,6 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
          *   3. The LocationRequester was explicitly cancelled.
          */
         void onLocationUnavailable();
-
-        /**
-         * Returns true if all messages are handled.
-         */
-        boolean areAllMessagesHandled();
     }
 
     private static final class LocationRequester {
@@ -993,14 +976,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 Log.d(mDebugTag, "onLocationUpdate: received location update");
             }
 
-            boolean canCancel = true;
             for (LocationUpdateCallback callback : mCallbacks) {
                 callback.onLocationUpdate(latLng, accuracy);
-                canCancel = canCancel && callback.areAllMessagesHandled();
-            }
-            if (canCancel) {
-                Log.d(mDebugTag, "call cancel because all messages are handled.");
-                cancel();
             }
         }
 

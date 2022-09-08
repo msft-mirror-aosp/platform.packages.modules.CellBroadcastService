@@ -22,8 +22,8 @@ import static android.telephony.SmsCbEtwsInfo.ETWS_WARNING_TYPE_OTHER_EMERGENCY;
 import static android.telephony.SmsCbEtwsInfo.ETWS_WARNING_TYPE_TEST_MESSAGE;
 import static android.telephony.SmsCbEtwsInfo.ETWS_WARNING_TYPE_TSUNAMI;
 
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERR_GSM_INVALID_GEO_FENCING_DATA;
-import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERR_GSM_UMTS_INVALID_WAC;
+import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_INVALID_GEO_FENCING_DATA;
+import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_UMTS_INVALID_WAC;
 
 import android.annotation.NonNull;
 import android.content.Context;
@@ -211,8 +211,9 @@ public class GsmSmsCbMessage {
         } catch (Exception ex) {
             final String errorMessage = "create geo-fencing trigger failed, ex = " + ex.toString();
             Log.e(TAG, errorMessage);
-            CellBroadcastServiceMetrics.getInstance().logMessageError(
-                    ERR_GSM_INVALID_GEO_FENCING_DATA, errorMessage);
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
+                    CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_INVALID_GEO_FENCING_DATA,
+                    errorMessage);
             return null;
         }
     }
@@ -236,8 +237,9 @@ public class GsmSmsCbMessage {
             IllegalArgumentException ex = new IllegalArgumentException(
                     "Invalid wac data, expected the length of pdu at least "
                             + (offset + wacDataLength) + ", actual is " + pdu.length);
-            CellBroadcastServiceMetrics.getInstance().logMessageError(
-                    ERR_GSM_UMTS_INVALID_WAC, ex.toString());
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_UMTS_INVALID_WAC,
+                    ex.toString());
             throw ex;
         }
 
@@ -281,8 +283,9 @@ public class GsmSmsCbMessage {
                 default:
                     IllegalArgumentException ex = new IllegalArgumentException(
                             "Unsupported geoType = " + type);
-                    CellBroadcastServiceMetrics.getInstance().logMessageError(
-                            ERR_GSM_UMTS_INVALID_WAC, ex.toString());
+                    CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
+                            CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_UMTS_INVALID_WAC,
+                            ex.toString());
                     throw ex;
             }
         }
