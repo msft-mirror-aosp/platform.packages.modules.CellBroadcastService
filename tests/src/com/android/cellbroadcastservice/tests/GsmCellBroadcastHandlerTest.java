@@ -518,13 +518,41 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         mGsmCellBroadcastHandler.setCellBroadcastAreaInfo(0, areaInfo);
         assertEquals(areaInfo, mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
 
+        ArgumentCaptor<PhoneStateListener> listenerCaptor =
+                ArgumentCaptor.forClass(PhoneStateListener.class);
+        verify(mMockedTelephonyManager).listen(listenerCaptor.capture(), anyInt());
+
+        PhoneStateListener listener = listenerCaptor.getValue();
+        ServiceState ss = mock(ServiceState.class);
+        doReturn(ServiceState.STATE_OUT_OF_SERVICE).when(ss).getState();
+        listener.onServiceStateChanged(ss);
+
+        assertEquals("", mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
+    }
+
+    @Test
+    @SmallTest
+    public void testResetAreaInfoWithDefaultSubChanged() {
+        String areaInfo = "0000000000000000";
+        mGsmCellBroadcastHandler.setCellBroadcastAreaInfo(0, areaInfo);
+        assertEquals(areaInfo, mGsmCellBroadcastHandler.getCellBroadcastAreaInfo(0));
+
+        TelephonyManager tm2 = mock(TelephonyManager.class);
+        doReturn(tm2).when(mMockedTelephonyManager).createForSubscriptionId(FAKE_SUBID + 1);
+        SubscriptionInfo subInfo = mock(SubscriptionInfo.class);
+        doReturn(subInfo).when(mMockedSubscriptionManager)
+                .getActiveSubscriptionInfoForSimSlotIndex(anyInt());
+        doReturn(FAKE_SUBID + 1).when(subInfo).getSubscriptionId();
+
         Intent intent = new Intent(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED);
-        intent.putExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID);
+        intent.putExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID + 1);
         sendBroadcast(intent);
+
         ArgumentCaptor<PhoneStateListener> listenerCaptor =
                 ArgumentCaptor.forClass(PhoneStateListener.class);
         mTestableLooper.processAllMessages();
-        verify(mMockedTelephonyManager).listen(listenerCaptor.capture(), anyInt());
+
+        verify(tm2).listen(listenerCaptor.capture(), anyInt());
 
         PhoneStateListener listener = listenerCaptor.getValue();
         ServiceState ss = mock(ServiceState.class);
