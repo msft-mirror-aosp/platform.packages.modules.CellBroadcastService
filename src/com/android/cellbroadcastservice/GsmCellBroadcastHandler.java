@@ -171,18 +171,15 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             log("subId[" + subId + "] is not valid");
             return;
         }
-        boolean isResetAreaInfoOnOos = getResources(subId)
-                .getBoolean(R.bool.reset_area_info_on_oos);
-        if (mIsResetAreaInfoOnOos != isResetAreaInfoOnOos) {
-            mIsResetAreaInfoOnOos = isResetAreaInfoOnOos;
-            if (mIsResetAreaInfoOnOos) {
-                registerServiceStateListeners();
-            } else {
-                unregisterServiceStateListeners();
-            }
-            CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
-                    .onChangedResetAreaInfo(mIsResetAreaInfoOnOos);
+
+        mIsResetAreaInfoOnOos = getResources(subId).getBoolean(R.bool.reset_area_info_on_oos);
+        if (mIsResetAreaInfoOnOos) {
+            registerServiceStateListeners();
+        } else {
+            unregisterServiceStateListeners();
         }
+        CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
+                .onChangedResetAreaInfo(mIsResetAreaInfoOnOos);
     }
 
     private void registerServiceStateListeners() {
