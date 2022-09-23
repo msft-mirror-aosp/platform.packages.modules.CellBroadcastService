@@ -16,8 +16,12 @@
 
 package com.android.cellbroadcastservice;
 
-import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_INVALID_PDU;
-import static com.android.cellbroadcastservice.CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_ERROR__TYPE__UNEXPECTED_GSM_MESSAGE_TYPE_FROM_FWK;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERR_GSM_INVALID_PDU;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERR_UNEXPECTED_GSM_MSG_FROM_FWK;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_AREAINFO;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_DUPLICATE;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.RPT_GSM;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.SRC_CBS;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -167,16 +171,15 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             log("subId[" + subId + "] is not valid");
             return;
         }
-        boolean isResetAreaInfoOnOos = getResources(subId)
-                .getBoolean(R.bool.reset_area_info_on_oos);
-        if (mIsResetAreaInfoOnOos != isResetAreaInfoOnOos) {
-            mIsResetAreaInfoOnOos = isResetAreaInfoOnOos;
-            if (mIsResetAreaInfoOnOos) {
-                registerServiceStateListeners();
-            } else {
-                unregisterServiceStateListeners();
-            }
+
+        mIsResetAreaInfoOnOos = getResources(subId).getBoolean(R.bool.reset_area_info_on_oos);
+        if (mIsResetAreaInfoOnOos) {
+            registerServiceStateListeners();
+        } else {
+            unregisterServiceStateListeners();
         }
+        CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
+                .onChangedResetAreaInfo(mIsResetAreaInfoOnOos);
     }
 
     private void registerServiceStateListeners() {
@@ -407,12 +410,13 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                                 calculator, location, slotIndex, accuracy);
                     }
                 }
+            }
 
+            @Override
+            public boolean areAllMessagesHandled() {
                 boolean containsAnyAmbiguousMessages = Arrays.stream(calculators)
                         .anyMatch(c -> isMessageInAmbiguousState(c));
-                if (!containsAnyAmbiguousMessages) {
-                    cancelLocationRequest();
-                }
+                return !containsAnyAmbiguousMessages;
             }
 
             @Override
@@ -452,6 +456,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
             String[] pkgs = mContext.getResources().getStringArray(
                     R.array.config_area_info_receiver_packages);
+            CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
+                    .onChangedAreaInfoPackage(new ArrayList<>(Arrays.asList(pkgs)));
             for (String pkg : pkgs) {
                 Intent intent = new Intent(CellBroadcastIntents.ACTION_AREA_INFO_UPDATED);
                 intent.putExtra(SubscriptionManager.EXTRA_SLOT_INDEX, slotIndex);
@@ -481,7 +487,9 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             SmsCbHeader header = createSmsCbHeader(pdu);
             if (header == null) return false;
 
-            log("header=" + header);
+            CellBroadcastServiceMetrics.getInstance().logMessageReported(mContext,
+                    RPT_GSM, SRC_CBS, header.getSerialNumber(), header.getServiceCategory());
+
             if (header.getServiceCategory() == SmsCbConstants.MESSAGE_ID_CMAS_GEO_FENCING_TRIGGER) {
                 GeoFencingTriggerMessage triggerMessage =
                         GsmSmsCbMessage.createGeoFencingTriggerMessage(pdu);
@@ -492,17 +500,15 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 SmsCbMessage cbMessage = handleGsmBroadcastSms(header, pdu, slotIndex);
                 if (cbMessage != null) {
                     if (isDuplicate(cbMessage)) {
-                        CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_FILTERED,
-                                CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__TYPE__GSM,
-                                CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__FILTER__DUPLICATE_MESSAGE);
+                        CellBroadcastServiceMetrics.getInstance()
+                                .logMessageFiltered(FILTER_DUPLICATE, cbMessage);
                         return false;
                     }
 
                     if (handleAreaInfoMessage(slotIndex, cbMessage)) {
                         log("Channel " + cbMessage.getServiceCategory() + " message processed");
-                        CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_FILTERED,
-                                CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__TYPE__GSM,
-                                CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_FILTERED__FILTER__AREA_INFO_MESSAGE);
+                        CellBroadcastServiceMetrics.getInstance()
+                                .logMessageFiltered(FILTER_AREAINFO, cbMessage);
                         return false;
                     }
 
@@ -515,9 +521,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             final String errorMessage = "handleSmsMessage for GSM got object of type: "
                     + message.obj.getClass().getName();
             loge(errorMessage);
-            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
-                    CELL_BROADCAST_MESSAGE_ERROR__TYPE__UNEXPECTED_GSM_MESSAGE_TYPE_FROM_FWK,
-                    errorMessage);
+            CellBroadcastServiceMetrics.getInstance().logMessageError(
+                    ERR_UNEXPECTED_GSM_MSG_FROM_FWK, errorMessage);
         }
         if (message.obj instanceof SmsCbMessage) {
             return super.handleSmsMessage(message);
@@ -706,11 +711,11 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             return GsmSmsCbMessage.createSmsCbMessage(mContext, header, location, pdus, slotIndex);
 
         } catch (RuntimeException e) {
-            final String errorMessage = "Error in decoding SMS CB pdu: " + e.toString();
+            final String errorMsg = "Error in decoding SMS CB pdu: " + e.toString();
             e.printStackTrace();
-            loge(errorMessage);
-            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_ERROR,
-                    CELL_BROADCAST_MESSAGE_ERROR__TYPE__GSM_INVALID_PDU, errorMessage);
+            loge(errorMsg);
+            CellBroadcastServiceMetrics.getInstance()
+                    .logMessageError(ERR_GSM_INVALID_PDU, errorMsg);
             return null;
         }
     }
