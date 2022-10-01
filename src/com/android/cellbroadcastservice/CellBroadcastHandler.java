@@ -70,6 +70,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.modules.utils.HandlerExecutor;
+import com.android.modules.utils.build.SdkLevel;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -129,6 +130,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     private final LocalLog mLocalLog = new LocalLog(100);
 
     private static final boolean IS_DEBUGGABLE = SystemProperties.getInt("ro.debuggable", 0) == 1;
+
+    /**
+     * Used to register receivers as exported to other apps on the device. The Context flag was
+     * introduced in T, and all previous releases use a default value of 0 to export the receiver.
+     */
+    protected static final int RECEIVER_EXPORTED =
+            SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
 
     /** Uses to request the location update. */
     private final LocationRequester mLocationRequester;
@@ -282,7 +290,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             intentFilter.addAction(ACTION_DUPLICATE_DETECTION);
         }
 
-        mContext.registerReceiver(mReceiver, intentFilter, Context.RECEIVER_EXPORTED);
+        mContext.registerReceiver(mReceiver, intentFilter, RECEIVER_EXPORTED);
     }
 
     public void cleanup() {
