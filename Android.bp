@@ -18,6 +18,7 @@ java_defaults {
     ],
     sdk_version: "module_current",
     static_libs: [
+        "modules-utils-build",
         "modules-utils-handlerexecutor",
         "modules-utils-locallog",
         "modules-utils-preconditions",
