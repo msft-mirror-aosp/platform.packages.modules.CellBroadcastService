@@ -127,7 +127,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
+                CBR_MODULE_PERMISSION, null, RECEIVER_EXPORTED);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
@@ -146,7 +146,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         super("GsmCellBroadcastHandler", context, looper, cbSendMessageCalculatorFactory,
                 handlerHelper);
         mContext.registerReceiver(mGsmReceiver, new IntentFilter(ACTION_AREA_UPDATE_ENABLED),
-                CBR_MODULE_PERMISSION, null, Context.RECEIVER_NOT_EXPORTED);
+                CBR_MODULE_PERMISSION, null, RECEIVER_EXPORTED);
         mContext.registerReceiver(mGsmReceiver,
                 new IntentFilter(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED),
                 null, null);
@@ -171,18 +171,15 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             log("subId[" + subId + "] is not valid");
             return;
         }
-        boolean isResetAreaInfoOnOos = getResources(subId)
-                .getBoolean(R.bool.reset_area_info_on_oos);
-        if (mIsResetAreaInfoOnOos != isResetAreaInfoOnOos) {
-            mIsResetAreaInfoOnOos = isResetAreaInfoOnOos;
-            if (mIsResetAreaInfoOnOos) {
-                registerServiceStateListeners();
-            } else {
-                unregisterServiceStateListeners();
-            }
-            CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
-                    .onChangedResetAreaInfo(mIsResetAreaInfoOnOos);
+
+        mIsResetAreaInfoOnOos = getResources(subId).getBoolean(R.bool.reset_area_info_on_oos);
+        if (mIsResetAreaInfoOnOos) {
+            registerServiceStateListeners();
+        } else {
+            unregisterServiceStateListeners();
         }
+        CellBroadcastServiceMetrics.getInstance().getFeatureMetrics(mContext)
+                .onChangedResetAreaInfo(mIsResetAreaInfoOnOos);
     }
 
     private void registerServiceStateListeners() {
