@@ -18,6 +18,8 @@ package com.android.cellbroadcastservice.tests;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -53,6 +55,7 @@ import com.android.cellbroadcastservice.CbSendMessageCalculator;
 import com.android.cellbroadcastservice.CellBroadcastHandler;
 import com.android.cellbroadcastservice.CellBroadcastProvider;
 import com.android.cellbroadcastservice.SmsCbConstants;
+import com.android.modules.utils.build.SdkLevel;
 
 import org.junit.After;
 import org.junit.Before;
@@ -318,6 +321,20 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
         verify(mMockedResourcesCache, times(2)).containsKey(any());
         verify(mMockedContext, times(2)).getResources();
+    }
+
+    @Test
+    @SmallTest
+    public void testConstructorRegistersReceiverWithExpectedFlag() {
+        int expectedFlag = SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
+        clearInvocations(mMockedContext);
+
+        CellBroadcastHandler cellBroadcastHandler = new CellBroadcastHandler(
+                "CellBroadcastHandlerUT", mMockedContext, mTestbleLooper.getLooper(),
+                mSendMessageFactory, mHandlerHelper);
+
+        verify(mMockedContext, times(1)).registerReceiver(any(), any(), eq(expectedFlag));
+        cellBroadcastHandler.cleanup();
     }
 
     /**

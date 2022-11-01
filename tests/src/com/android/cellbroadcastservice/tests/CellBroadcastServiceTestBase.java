@@ -165,6 +165,11 @@ public class CellBroadcastServiceTestBase extends TestCase {
                 any(BroadcastReceiver.class), any(IntentFilter.class));
         doAnswer(registerReceiverAnswer).when(mMockedContext).registerReceiver(
                 any(BroadcastReceiver.class), any(IntentFilter.class), any(int.class));
+        doAnswer(registerReceiverAnswer).when(mMockedContext).registerReceiver(
+                any(BroadcastReceiver.class), any(IntentFilter.class), any(), any());
+        doAnswer(registerReceiverAnswer).when(mMockedContext).registerReceiver(
+                any(BroadcastReceiver.class), any(IntentFilter.class),
+                any(), any(), any(int.class));
 
         doReturn(mSharedPreference).when(mMockedContext)
                 .getSharedPreferences(anyString(), anyInt());
