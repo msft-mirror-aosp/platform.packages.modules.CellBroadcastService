@@ -27,6 +27,7 @@ java_defaults {
     privileged: true,
     resource_dirs: ["res"],
     optimize: {
+        shrink_resources: true,
         proguard_flags_files: ["proguard.flags"],
     },
     jarjar_rules: "cellbroadcast-jarjar-rules.txt",
