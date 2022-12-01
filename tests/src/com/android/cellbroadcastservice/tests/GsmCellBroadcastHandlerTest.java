@@ -555,6 +555,7 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 ArgumentCaptor.forClass(PhoneStateListener.class);
         mTestableLooper.processAllMessages();
 
+        verify(mMockedTelephonyManager).listen(any(), eq(PhoneStateListener.LISTEN_NONE));
         verify(tm2).listen(listenerCaptor.capture(), anyInt());
 
         PhoneStateListener listener = listenerCaptor.getValue();
