@@ -33,6 +33,7 @@ import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_GEOFE
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
@@ -759,6 +760,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param message a message need to broadcast
      * @param messageUri message's uri
      */
+    // TODO(b/193460475): Remove when tooling supports SystemApi to public API.
+    @SuppressLint("NewApi")
     protected void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
             int slotIndex) {
         String msg;
