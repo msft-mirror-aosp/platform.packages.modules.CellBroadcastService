@@ -97,12 +97,9 @@ public class GsmSmsCbMessage {
     public static SmsCbMessage createSmsCbMessage(Context context, SmsCbHeader header,
             SmsCbLocation location, byte[][] pdus, int slotIndex)
             throws IllegalArgumentException {
-        SubscriptionManager sm = (SubscriptionManager) context.getSystemService(
-                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        int subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
-        int[] subIds = sm.getSubscriptionIds(slotIndex);
-        if (subIds != null && subIds.length > 0) {
-            subId = subIds[0];
+        int subId = CellBroadcastHandler.getSubIdForPhone(context, slotIndex);
+        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+            subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
         }
 
         long receivedTimeMillis = System.currentTimeMillis();
