@@ -292,10 +292,10 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
     private Resources getResourcesForSlot(int slotIndex) {
         SubscriptionManager subMgr = mContext.getSystemService(SubscriptionManager.class);
-        int[] subIds = subMgr.getSubscriptionIds(slotIndex);
+        int subId = getSubIdForPhone(mContext, slotIndex);
         Resources res;
-        if (subIds != null) {
-            res = getResources(subIds[0]);
+        if (SubscriptionManager.isValidSubscriptionId(subId)) {
+            res = getResources(subId);
         } else {
             res = getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
         }
