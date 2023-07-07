@@ -30,6 +30,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.database.Cursor;
@@ -65,6 +66,7 @@ import com.android.cellbroadcastservice.CellBroadcastHandler;
 import com.android.cellbroadcastservice.CellBroadcastProvider;
 import com.android.cellbroadcastservice.GsmCellBroadcastHandler;
 import com.android.cellbroadcastservice.SmsCbConstants;
+import com.android.modules.utils.build.SdkLevel;
 
 import org.junit.After;
 import org.junit.Before;
@@ -186,6 +188,7 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 new CellBroadcastContentProvider());
         ((MockContentResolver) mMockedContext.getContentResolver()).addProvider(
                 Settings.AUTHORITY, new SettingsProvider());
+        doReturn(mMockedContext).when(mMockedContext).createConfigurationContext(any());
         doReturn(true).when(mMockedResourcesCache).containsKey(anyInt());
         doReturn(mMockedResources).when(mMockedResourcesCache).get(anyInt());
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time, 86400000);
@@ -552,6 +555,7 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 ArgumentCaptor.forClass(PhoneStateListener.class);
         mTestableLooper.processAllMessages();
 
+        verify(mMockedTelephonyManager).listen(any(), eq(PhoneStateListener.LISTEN_NONE));
         verify(tm2).listen(listenerCaptor.capture(), anyInt());
 
         PhoneStateListener listener = listenerCaptor.getValue();
@@ -569,6 +573,33 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper, mMockedResources,
                 SubscriptionManager.INVALID_SUBSCRIPTION_ID);
         verify(mMockedContext, never()).getResources();
+    }
+
+    @Test
+    @SmallTest
+    public void testConstructorRegistersReceiverWithExpectedFlag() {
+        int expectedFlag = SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
+        clearInvocations(mMockedContext);
+
+        GsmCellBroadcastHandler gsmCellBroadcastHandler = new GsmCellBroadcastHandler(
+                mMockedContext, mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper);
+
+        verify(mMockedContext, times(1)).registerReceiver(any(), any(), eq(expectedFlag));
+        gsmCellBroadcastHandler.cleanup();
+    }
+
+    @Test
+    @SmallTest
+    public void testConstructorWithResourcesRegistersReceiverWithExpectedFlag() {
+        int expectedFlag = SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
+        clearInvocations(mMockedContext);
+
+        GsmCellBroadcastHandler gsmCellBroadcastHandler = new GsmCellBroadcastHandler(
+                mMockedContext, mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper,
+                mMockedResources, SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+
+        verify(mMockedContext, times(1)).registerReceiver(any(), any(), eq(expectedFlag));
+        gsmCellBroadcastHandler.cleanup();
     }
 
     /* Below are helper methods for setting up mocks, verifying actions, etc. */

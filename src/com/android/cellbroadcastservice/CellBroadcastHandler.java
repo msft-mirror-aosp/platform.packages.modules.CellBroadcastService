@@ -33,6 +33,7 @@ import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_GEOFE
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
@@ -70,6 +71,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.modules.utils.HandlerExecutor;
+import com.android.modules.utils.build.SdkLevel;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -129,6 +131,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     private final LocalLog mLocalLog = new LocalLog(100);
 
     private static final boolean IS_DEBUGGABLE = SystemProperties.getInt("ro.debuggable", 0) == 1;
+
+    /**
+     * Used to register receivers as exported to other apps on the device. The Context flag was
+     * introduced in T, and all previous releases use a default value of 0 to export the receiver.
+     */
+    protected static final int RECEIVER_EXPORTED =
+            SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
 
     /** Uses to request the location update. */
     private final LocationRequester mLocationRequester;
@@ -282,7 +291,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             intentFilter.addAction(ACTION_DUPLICATE_DETECTION);
         }
 
-        mContext.registerReceiver(mReceiver, intentFilter, Context.RECEIVER_EXPORTED);
+        mContext.registerReceiver(mReceiver, intentFilter, RECEIVER_EXPORTED);
     }
 
     public void cleanup() {
@@ -691,20 +700,24 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     }
 
     /**
-     * Get the subscription ID for a phone ID, or INVALID_SUBSCRIPTION_ID if the phone does not
-     * have an active sub
-     * @param phoneId the phoneId to use
-     * @return the associated sub id
+     * Get the subscription id from the phone id.
+     *
+     * @param phoneId the phone id (i.e. logical SIM slot index)
+     *
+     * @return The associated subscription id. {@link SubscriptionManager#INVALID_SUBSCRIPTION_ID}
+     * if the phone does not have an active sub or when {@code phoneId} is not valid.
      */
-    protected static int getSubIdForPhone(Context context, int phoneId) {
-        SubscriptionManager subMan =
-                (SubscriptionManager) context.getSystemService(
-                        Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        int[] subIds = subMan.getSubscriptionIds(phoneId);
-        if (subIds != null) {
-            return subIds[0];
+    public static int getSubIdForPhone(Context context, int phoneId) {
+        if (SdkLevel.isAtLeastU()) {
+            return SubscriptionManager.getSubscriptionId(phoneId);
         } else {
-            return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+            SubscriptionManager subMan = context.getSystemService(SubscriptionManager.class);
+            int[] subIds = subMan.getSubscriptionIds(phoneId);
+            if (subIds != null) {
+                return subIds[0];
+            } else {
+                return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+            }
         }
     }
 
@@ -751,6 +764,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param message a message need to broadcast
      * @param messageUri message's uri
      */
+    // TODO(b/193460475): Remove when tooling supports SystemApi to public API.
+    @SuppressLint("NewApi")
     protected void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
             int slotIndex) {
         String msg;
