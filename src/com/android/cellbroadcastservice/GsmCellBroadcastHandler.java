@@ -183,6 +183,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
     }
 
     private void registerServiceStateListeners() {
+        // clean previously registered listeners
+        unregisterServiceStateListeners();
         // register for all active slots
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
         SubscriptionManager sm = mContext.getSystemService(SubscriptionManager.class);
@@ -205,6 +207,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
         for (int i = 0; i < size; i++) {
             tm.listen(mServiceStateListener.valueAt(i), PhoneStateListener.LISTEN_NONE);
         }
+        mServiceStateListener.clear();
     }
 
     private class ServiceStateListener extends PhoneStateListener {
@@ -289,10 +292,10 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
     private Resources getResourcesForSlot(int slotIndex) {
         SubscriptionManager subMgr = mContext.getSystemService(SubscriptionManager.class);
-        int[] subIds = subMgr.getSubscriptionIds(slotIndex);
+        int subId = getSubIdForPhone(mContext, slotIndex);
         Resources res;
-        if (subIds != null) {
-            res = getResources(subIds[0]);
+        if (SubscriptionManager.isValidSubscriptionId(subId)) {
+            res = getResources(subId);
         } else {
             res = getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
         }

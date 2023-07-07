@@ -33,6 +33,7 @@ import static com.android.cellbroadcastservice.CellBroadcastMetrics.FILTER_GEOFE
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
@@ -699,20 +700,24 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
     }
 
     /**
-     * Get the subscription ID for a phone ID, or INVALID_SUBSCRIPTION_ID if the phone does not
-     * have an active sub
-     * @param phoneId the phoneId to use
-     * @return the associated sub id
+     * Get the subscription id from the phone id.
+     *
+     * @param phoneId the phone id (i.e. logical SIM slot index)
+     *
+     * @return The associated subscription id. {@link SubscriptionManager#INVALID_SUBSCRIPTION_ID}
+     * if the phone does not have an active sub or when {@code phoneId} is not valid.
      */
-    protected static int getSubIdForPhone(Context context, int phoneId) {
-        SubscriptionManager subMan =
-                (SubscriptionManager) context.getSystemService(
-                        Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        int[] subIds = subMan.getSubscriptionIds(phoneId);
-        if (subIds != null) {
-            return subIds[0];
+    public static int getSubIdForPhone(Context context, int phoneId) {
+        if (SdkLevel.isAtLeastU()) {
+            return SubscriptionManager.getSubscriptionId(phoneId);
         } else {
-            return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+            SubscriptionManager subMan = context.getSystemService(SubscriptionManager.class);
+            int[] subIds = subMan.getSubscriptionIds(phoneId);
+            if (subIds != null) {
+                return subIds[0];
+            } else {
+                return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+            }
         }
     }
 
@@ -759,6 +764,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param message a message need to broadcast
      * @param messageUri message's uri
      */
+    // TODO(b/193460475): Remove when tooling supports SystemApi to public API.
+    @SuppressLint("NewApi")
     protected void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
             int slotIndex) {
         String msg;
