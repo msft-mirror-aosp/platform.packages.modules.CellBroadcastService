@@ -83,18 +83,14 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
     public void onCdmaCellBroadcastSms(int slotIndex, byte[] bearerData, int serviceCategory) {
         Log.d(TAG, "onCdmaCellBroadcastSms received message on slotId=" + slotIndex);
 
-        int[] subIds =
-                ((SubscriptionManager) getSystemService(
-                        Context.TELEPHONY_SUBSCRIPTION_SERVICE)).getSubscriptionIds(slotIndex);
-        String plmn;
-        if (subIds != null && subIds.length > 0) {
-            int subId = subIds[0];
-            plmn = ((TelephonyManager) getSystemService(
-                    Context.TELEPHONY_SERVICE)).createForSubscriptionId(
-                    subId).getNetworkOperator();
-        } else {
-            plmn = "";
+        int subId = CellBroadcastHandler.getSubIdForPhone(getApplicationContext(), slotIndex);
+
+        String plmn = "";
+        if (SubscriptionManager.isValidSubscriptionId(subId)) {
+            plmn = getSystemService(TelephonyManager.class)
+                    .createForSubscriptionId(subId).getNetworkOperator();
         }
+
         SmsCbMessage message = parseCdmaBroadcastSms(getApplicationContext(), slotIndex, plmn,
                 bearerData, serviceCategory);
         if (message != null) {
@@ -143,12 +139,9 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
         Log.d(TAG, "MT raw BearerData = " + toHexString(bearerData, 0, bearerData.length));
         SmsCbLocation location = new SmsCbLocation(plmn, -1, -1);
 
-        SubscriptionManager sm = (SubscriptionManager) context.getSystemService(
-                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        int subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
-        int[] subIds = sm.getSubscriptionIds(slotIndex);
-        if (subIds != null && subIds.length > 0) {
-            subId = subIds[0];
+        int subId = CellBroadcastHandler.getSubIdForPhone(context, slotIndex);
+        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+            subId = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
         }
 
         return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP2,
