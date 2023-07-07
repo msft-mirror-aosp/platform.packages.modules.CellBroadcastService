@@ -27,10 +27,10 @@ java_defaults {
     privileged: true,
     resource_dirs: ["res"],
     optimize: {
+        shrink_resources: true,
         proguard_flags_files: ["proguard.flags"],
     },
     jarjar_rules: "cellbroadcast-jarjar-rules.txt",
-    plugins: ["java_api_finder"],
     lint: {
         strict_updatability_linting: true,
     },
@@ -42,7 +42,7 @@ android_app {
     certificate: "networkstack",
     manifest: "AndroidManifest.xml",
     apex_available: ["com.android.cellbroadcast"],
-    required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
+    privapp_allowlist: ":privapp_allowlist_com.android.cellbroadcastservice.xml",
 }
 
 android_app {
@@ -54,7 +54,7 @@ android_app {
      // which consists of CellBroadcastServiceModule
      overrides: ["com.android.cellbroadcast"],
      manifest: "AndroidManifest_Platform.xml",
-     required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
+     privapp_allowlist: ":platform_privapp_allowlist_com.android.cellbroadcastservice.xml",
 }
 
 genrule {
