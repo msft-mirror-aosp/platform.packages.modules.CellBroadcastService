@@ -32,7 +32,6 @@ import static org.mockito.Mockito.verify;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -96,8 +95,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private SubscriptionInfo mSubInfo;
 
     private CellBroadcastHandlerTest.CbSendMessageCalculatorFactoryFacade mSendMessageFactory;
-
-    private Configuration mConfiguration;
 
     private class CellBroadcastContentProvider extends MockContentProvider {
         @Override
@@ -192,10 +189,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         ((MockContentResolver) mMockedContext.getContentResolver()).addProvider(
                 Settings.AUTHORITY, new SettingsProvider());
         doReturn(mMockedContext).when(mMockedContext).createConfigurationContext(any());
-        doReturn("com.android.cellbroadcastservice").when(mMockedContext).getPackageName();
-        doReturn(mMockedResources).when(mMockedContext).getResources();
-        mConfiguration = new Configuration();
-        doReturn(mConfiguration).when(mMockedResources).getConfiguration();
         doReturn(true).when(mMockedResourcesCache).containsKey(anyInt());
         doReturn(mMockedResources).when(mMockedResourcesCache).get(anyInt());
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time, 86400000);
