@@ -12,7 +12,7 @@ android_test {
         "modules-utils-locallog",
         "modules-utils-preconditions",
         "modules-utils-statemachine",
-        "truth-prebuilt",
+        "truth",
         "testables",
     ],
     libs: [
@@ -22,9 +22,15 @@ android_test {
         "android.test.mock",
         "unsupportedappusage",
     ],
-    srcs: ["src/**/*.java", ":cellbroadcast-shared-srcs"],
+    srcs: [
+        "src/**/*.java",
+        ":cellbroadcast-shared-srcs",
+    ],
     platform_apis: true,
-    test_suites: ["general-tests", "mts-cellbroadcast"],
+    test_suites: [
+        "general-tests",
+        "mts-cellbroadcast",
+    ],
     certificate: "platform",
     instrumentation_for: "CellBroadcastServiceModule",
     min_sdk_version: "30",
