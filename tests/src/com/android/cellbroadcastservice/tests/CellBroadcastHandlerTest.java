@@ -348,6 +348,44 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Test
     @SmallTest
+    public void testCrossSimDuplicateDetection() throws Exception {
+        int differentSlotID = 1;
+        int differentSubID = 2;
+
+        // enable cross_sim_duplicate_detection
+        putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
+
+        // The message with different subId will be detected as duplication.
+        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message", 3,
+                null, null, 0, differentSubID);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
+
+        // The message with different body won't be detected as a duplication.
+        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Different Message", 3,
+                null, null, 0, differentSubID);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
+
+        // The message with different slotId will be detected as a duplication.
+        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message", 3,
+                null, null, differentSlotID, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg3));
+
+        // The message with different slotId and body will be detected as a duplication.
+        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Different Message", 3,
+                null, null, differentSlotID, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
+    }
+
+    @Test
+    @SmallTest
     public void testGetResources() throws Exception {
         SubscriptionInfo mockSubInfo = mock(SubscriptionInfo.class);
         doReturn(mockSubInfo).when(mMockedSubscriptionManager).getActiveSubscriptionInfo(anyInt());
