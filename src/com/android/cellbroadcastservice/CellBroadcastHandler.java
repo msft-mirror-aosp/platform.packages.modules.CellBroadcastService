@@ -564,7 +564,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             // If messages are from different slots, then we only compare the message body.
             if (VDBG) log("Checking the message " + messageToCheck);
             if (crossSimDuplicateDetection
-                    && message.getSlotIndex() != messageToCheck.getSlotIndex()) {
+                    && message.getSubscriptionId() != messageToCheck.getSubscriptionId()) {
                 if (TextUtils.equals(message.getMessageBody(), messageToCheck.getMessageBody())) {
                     log("Duplicate message detected from different slot. " + message);
                     return true;
