@@ -350,7 +350,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @SmallTest
     public void testCrossSimDuplicateDetection() throws Exception {
         int differentSlotID = 1;
-        int differentSubID = 2;
+        int differentSubID = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
 
         // enable cross_sim_duplicate_detection
         putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
