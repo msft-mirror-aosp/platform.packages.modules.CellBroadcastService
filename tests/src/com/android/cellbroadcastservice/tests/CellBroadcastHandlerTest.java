@@ -35,7 +35,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.IIntentSender;
 import android.content.Intent;
-import android.content.res.Resources;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
@@ -48,6 +48,7 @@ import android.telephony.CbGeoUtils;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
+import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
@@ -56,7 +57,6 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.text.format.DateUtils;
-import android.util.Pair;
 import android.util.Singleton;
 
 import androidx.annotation.NonNull;
@@ -79,7 +79,6 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RunWith(AndroidTestingRunner.class)
 @TestableLooper.RunWithLooper
@@ -88,9 +87,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private CellBroadcastHandler mCellBroadcastHandler;
 
     private TestableLooper mTestbleLooper;
-
-    @Mock
-    private Map<Pair<Context, Integer>, Resources> mMockedResourcesCache;
 
     private CbSendMessageCalculatorFactoryFacade mSendMessageFactory;
 
@@ -112,6 +108,8 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Mock
     private ISub mISub;
+
+    private Configuration mConfiguration;
 
     private class CellBroadcastContentProvider extends MockContentProvider {
         @Override
@@ -185,10 +183,11 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         ((MockContentResolver) mMockedContext.getContentResolver()).addProvider(
                 Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
                 new CellBroadcastContentProvider());
-        doReturn(true).when(mMockedResourcesCache).containsKey(any());
-        doReturn(mMockedResources).when(mMockedResourcesCache).get(any());
-        replaceInstance(SubscriptionManager.class, "sResourcesCache", mCellBroadcastHandler,
-                mMockedResourcesCache);
+        doReturn("com.android.cellbroadcastservice").when(mMockedContext).getPackageName();
+        doReturn(mMockedContext).when(mMockedContext).createConfigurationContext(any());
+        doReturn(mMockedResources).when(mMockedContext).getResources();
+        mConfiguration = new Configuration();
+        doReturn(mConfiguration).when(mMockedResources).getConfiguration();
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time,
                 (int) DateUtils.DAY_IN_MILLIS);
         putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_service_category,
@@ -350,29 +349,32 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Test
     @SmallTest
     public void testGetResources() throws Exception {
+        SubscriptionInfo mockSubInfo = mock(SubscriptionInfo.class);
+        doReturn(mockSubInfo).when(mMockedSubscriptionManager).getActiveSubscriptionInfo(anyInt());
+        doReturn(001).when(mockSubInfo).getMcc();
+        doReturn(01).when(mockSubInfo).getMnc();
+
         // verify not to call SubscriptionManager#getResourcesForSubId for DEFAULT ID
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(1)).getResources();
 
         // verify not to call SubscriptionManager#getResourcesForSubId for INVALID ID
         mCellBroadcastHandler.getResources(SubscriptionManager.INVALID_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(2)).getResources();
 
         // verify to call SubscriptionManager#getResourcesForSubId for normal sub id
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(1)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
 
         // verify to call SubscriptionManager#getResourcesForSubId again for the same sub
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(2)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
     }
 
     @Test
