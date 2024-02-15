@@ -13,6 +13,7 @@ java_defaults {
     libs: [
         "framework-annotations-lib",
         "framework-statsd",
+        "framework-location.stubs.module_lib",
         "unsupportedappusage",
     ],
     sdk_version: "module_current",
@@ -42,7 +43,7 @@ android_app {
     certificate: "networkstack",
     manifest: "AndroidManifest.xml",
     apex_available: ["com.android.cellbroadcast"],
-    required: ["privapp_allowlist_com.android.cellbroadcastservice.xml"],
+    privapp_allowlist: ":privapp_allowlist_com.android.cellbroadcastservice.xml",
 }
 
 android_app {
@@ -54,7 +55,7 @@ android_app {
      // which consists of CellBroadcastServiceModule
      overrides: ["com.android.cellbroadcast"],
      manifest: "AndroidManifest_Platform.xml",
-     required: ["platform_privapp_allowlist_com.android.cellbroadcastservice.xml"],
+     privapp_allowlist: ":platform_privapp_allowlist_com.android.cellbroadcastservice.xml",
 }
 
 genrule {
