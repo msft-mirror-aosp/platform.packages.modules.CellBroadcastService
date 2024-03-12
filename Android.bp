@@ -13,6 +13,7 @@ java_defaults {
     libs: [
         "framework-annotations-lib",
         "framework-statsd",
+        "framework-location.stubs.module_lib",
         "unsupportedappusage",
     ],
     sdk_version: "module_current",
