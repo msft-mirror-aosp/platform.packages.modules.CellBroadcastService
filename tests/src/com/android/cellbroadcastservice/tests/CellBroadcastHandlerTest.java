@@ -16,6 +16,9 @@
 
 package com.android.cellbroadcastservice.tests;
 
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE;
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -112,6 +115,17 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private Configuration mConfiguration;
 
     private class CellBroadcastContentProvider extends MockContentProvider {
+        String mPlmn = "311480";
+        int mGeographicalScope = 0;
+
+        public void setPlmn(String plmn) {
+            mPlmn = plmn;
+        }
+
+        public void setGeographicalScope(int geographicalScope) {
+            mGeographicalScope = geographicalScope;
+        }
+
         @Override
         public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
                 String sortOrder) {
@@ -123,8 +137,8 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         1,              // _ID
                         0,              // SLOT_INDEX
                         1,              // SUBSCRIPTION_ID
-                        0,              // GEOGRAPHICAL_SCOPE
-                        "311480",       // PLMN
+                        mGeographicalScope, // GEOGRAPHICAL_SCOPE
+                        mPlmn,          // PLMN
                         0,              // LAC
                         0,              // CID
                         1234,           // SERIAL_NUMBER
@@ -149,7 +163,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         "",             // GEOMETRIES
                         5,              // MAXIMUM_WAIT_TIME
                 });
-
                 return mc;
             }
 
@@ -161,6 +174,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             return 1;
         }
     }
+
 
     @Before
     public void setUp() throws Exception {
@@ -344,6 +358,46 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             // message should be detected as duplicate again
             assertTrue(mCellBroadcastHandler.isDuplicate(msg));
         }
+    }
+
+    @Test
+    @SmallTest
+    public void testEmptyPlmnDuplicateDetection() throws Exception {
+
+        // case (GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE + plmn exist)
+        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message1", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn exist)
+        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "")
+        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg3));
+
+        CellBroadcastContentProvider CBContentProviderForEmptyPlmn =
+                new CellBroadcastContentProvider();
+        CBContentProviderForEmptyPlmn.setPlmn("");
+        CBContentProviderForEmptyPlmn.setGeographicalScope(GEOGRAPHICAL_SCOPE_PLMN_WIDE);
+        mMockedContentResolver.addProvider(Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
+                CBContentProviderForEmptyPlmn);
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "") with already empty plmn message saved
+        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message3", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
     }
 
     @Test
