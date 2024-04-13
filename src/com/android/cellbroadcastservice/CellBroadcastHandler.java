@@ -795,7 +795,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                         additionalIntent.setPackage(pkg);
                         mLocalLog.log("intent=" + intent + " package=" + pkg);
                         mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
-                                intent, null, (Bundle) null, null, getHandler(),
+                                additionalIntent, null, (Bundle) null, null, getHandler(),
                                 Activity.RESULT_OK, null, null);
 
                     }
