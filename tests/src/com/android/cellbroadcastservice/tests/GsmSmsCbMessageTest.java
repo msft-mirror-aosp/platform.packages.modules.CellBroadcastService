@@ -1053,4 +1053,49 @@ public class GsmSmsCbMessageTest extends CellBroadcastServiceTestBase {
             }
         }
     }
+
+
+    private static final byte[] cmasGsm7Czech = hexStringToBytes(
+            "112311122011F7B0DC9D769F416176594E07");
+    private static final byte[] cmasUcs2Hebrew = hexStringToBytes(
+            "112311122111007700610072006E0069006E006700200061006C006500720074");
+    private static final byte[] cmasUcs2Arabic = hexStringToBytes(
+            "112311122211007700610072006E0069006E006700200061006C006500720074");
+    private static final byte[] cmasUcs2Russian = hexStringToBytes(
+            "112311122311007700610072006E0069006E006700200061006C006500720074");
+    private static final byte[] cmasGsm7Iceland = hexStringToBytes(
+            "112311122411F7B0DC9D769F416176594E07");
+
+    @Test
+    public void testCodingGroup0x02() {
+        SmsCbMessage msgCzech = createFromPdu(cmasGsm7Czech);
+        assert msgCzech != null;
+        assertEquals("cs", msgCzech.getLanguageCode());
+        assertEquals(0x00, msgCzech.getDataCodingScheme() & 0x0f);
+        assertEquals("warning alert", msgCzech.getMessageBody());
+
+        SmsCbMessage msgHebrew = createFromPdu(cmasUcs2Hebrew);
+        assert msgHebrew != null;
+        assertEquals("iw", msgHebrew.getLanguageCode());
+        assertEquals(0x01, msgHebrew.getDataCodingScheme() & 0x0f);
+        assertEquals("warning alert", msgHebrew.getMessageBody());
+
+        SmsCbMessage msgArabic = createFromPdu(cmasUcs2Arabic);
+        assert msgArabic != null;
+        assertEquals("ar", msgArabic.getLanguageCode());
+        assertEquals(0x02, msgArabic.getDataCodingScheme() & 0x0f);
+        assertEquals("warning alert", msgArabic.getMessageBody());
+
+        SmsCbMessage msgRussian = createFromPdu(cmasUcs2Russian);
+        assert msgRussian != null;
+        assertEquals("ru", msgRussian.getLanguageCode());
+        assertEquals(0x03, msgRussian.getDataCodingScheme() & 0x0f);
+        assertEquals("warning alert", msgRussian.getMessageBody());
+
+        SmsCbMessage msgIceland = createFromPdu(cmasGsm7Iceland);
+        assert msgIceland != null;
+        assertEquals("is", msgIceland.getLanguageCode());
+        assertEquals(0x04, msgIceland.getDataCodingScheme() & 0x0f);
+        assertEquals("warning alert", msgIceland.getMessageBody());
+    }
 }
