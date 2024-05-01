@@ -540,8 +540,14 @@ public class SmsCbHeader {
                     break;
 
                 case 0x02:
-                    encoding = SmsMessage.ENCODING_7BIT;
+                    // from the 3gpp 230-38 release 18,
+                    // Message text in Hebrew, Arabic and Russian cannot be encoded in the GSM
+                    // 7-bit default alphabet. For these languages UCS2 encoding shall be used.
                     language = LANGUAGE_CODES_GROUP_2[dataCodingScheme & 0x0f];
+                    switch (dataCodingScheme & 0x0f) {
+                        case 0x01, 0x02, 0x03 -> encoding = SmsMessage.ENCODING_16BIT;
+                        default -> encoding = SmsMessage.ENCODING_7BIT;
+                    }
                     break;
 
                 case 0x03:
