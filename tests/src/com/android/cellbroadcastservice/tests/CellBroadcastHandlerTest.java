@@ -18,6 +18,10 @@ package com.android.cellbroadcastservice.tests;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -25,27 +29,35 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import android.app.ActivityManager;
+import android.app.IActivityManager;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.IIntentSender;
 import android.content.Intent;
-import android.content.res.Resources;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Bundle;
+import android.os.IBinder;
+import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.provider.Telephony;
 import android.telephony.CbGeoUtils;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
+import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.text.format.DateUtils;
-import android.util.Pair;
+import android.util.Singleton;
 
 import androidx.annotation.NonNull;
 
@@ -53,6 +65,8 @@ import com.android.cellbroadcastservice.CbSendMessageCalculator;
 import com.android.cellbroadcastservice.CellBroadcastHandler;
 import com.android.cellbroadcastservice.CellBroadcastProvider;
 import com.android.cellbroadcastservice.SmsCbConstants;
+import com.android.internal.telephony.ISub;
+import com.android.modules.utils.build.SdkLevel;
 
 import org.junit.After;
 import org.junit.Before;
@@ -63,8 +77,8 @@ import org.mockito.Mock;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RunWith(AndroidTestingRunner.class)
 @TestableLooper.RunWithLooper
@@ -74,12 +88,28 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     private TestableLooper mTestbleLooper;
 
-    @Mock
-    private Map<Pair<Context, Integer>, Resources> mMockedResourcesCache;
-
     private CbSendMessageCalculatorFactoryFacade mSendMessageFactory;
 
     private CellBroadcastHandler.HandlerHelper mHandlerHelper;
+
+    protected HashMap<String, IBinder> mServiceManagerMockedServices = new HashMap<>();
+
+    @Mock
+    private IBinder mIBinder;
+
+    @Mock
+    private IActivityManager mIActivityManager;
+
+    @Mock
+    private IIntentSender mIIntentSender;
+
+    @Mock
+    private Singleton<IActivityManager> mIActivityManagerSingleton;
+
+    @Mock
+    private ISub mISub;
+
+    private Configuration mConfiguration;
 
     private class CellBroadcastContentProvider extends MockContentProvider {
         @Override
@@ -153,14 +183,32 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         ((MockContentResolver) mMockedContext.getContentResolver()).addProvider(
                 Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
                 new CellBroadcastContentProvider());
-        doReturn(true).when(mMockedResourcesCache).containsKey(any());
-        doReturn(mMockedResources).when(mMockedResourcesCache).get(any());
-        replaceInstance(SubscriptionManager.class, "sResourcesCache", mCellBroadcastHandler,
-                mMockedResourcesCache);
+        doReturn("com.android.cellbroadcastservice").when(mMockedContext).getPackageName();
+        doReturn(mMockedContext).when(mMockedContext).createConfigurationContext(any());
+        doReturn(mMockedResources).when(mMockedContext).getResources();
+        mConfiguration = new Configuration();
+        doReturn(mConfiguration).when(mMockedResources).getConfiguration();
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time,
                 (int) DateUtils.DAY_IN_MILLIS);
         putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_service_category,
                 true);
+
+        replaceInstance(ActivityManager.class, "IActivityManagerSingleton", null,
+                mIActivityManagerSingleton);
+
+        replaceInstance(Singleton.class, "mInstance", mIActivityManagerSingleton,
+                mIActivityManager);
+        replaceInstance(ServiceManager.class, "sCache", null, mServiceManagerMockedServices);
+
+        doReturn(mIIntentSender).when(mIActivityManager).getIntentSenderWithFeature(anyInt(),
+                nullable(String.class), nullable(String.class), nullable(IBinder.class),
+                nullable(String.class), anyInt(), nullable(Intent[].class),
+                nullable(String[].class), anyInt(), nullable(Bundle.class), anyInt());
+        doReturn(mIBinder).when(mIIntentSender).asBinder();
+        doReturn(mISub).when(mIBinder).queryLocalInterface(anyString());
+        mServiceManagerMockedServices.put("isub", mIBinder);
+        TelephonyManager.disableServiceHandleCaching();
+        SubscriptionManager.disableCaching();
     }
 
     @After
@@ -241,28 +289,34 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     public void testPutPhoneIdAndSubIdExtra() throws Exception {
         Intent intent = new Intent();
         int phoneId = 0;
+        if (SdkLevel.isAtLeastU()) {
+            doReturn(FAKE_SUBID).when(mISub).getSubId(phoneId);
+        }
         CellBroadcastHandler.putPhoneIdAndSubIdExtra(mMockedContext, intent, phoneId);
-        assertTrue(intent.getIntExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID + 1)
-                == FAKE_SUBID);
-        assertTrue(intent.getIntExtra("subscription", FAKE_SUBID + 1)
-                == FAKE_SUBID);
-        assertTrue(intent.getIntExtra(SubscriptionManager.EXTRA_SLOT_INDEX, phoneId + 1)
-                == phoneId);
-        assertTrue(intent.getIntExtra("phone", phoneId + 1)
-                == phoneId);
+        assertEquals(FAKE_SUBID, intent.getIntExtra(
+                SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID + 1));
+        assertEquals(FAKE_SUBID, intent.getIntExtra(
+                "subscription", FAKE_SUBID + 1));
+        assertEquals(phoneId, intent.getIntExtra(
+                SubscriptionManager.EXTRA_SLOT_INDEX, phoneId + 1));
+        assertEquals(phoneId, intent.getIntExtra("phone", phoneId + 1));
 
         // if subId is not available, subscription extras should not be added
         Intent intentNoSubId = new Intent();
-        doReturn(null).when(mMockedSubscriptionManager).getSubscriptionIds(anyInt());
+        if (SdkLevel.isAtLeastU()) {
+            doReturn(SubscriptionManager.INVALID_SUBSCRIPTION_ID).when(mISub).getSubId(phoneId);
+        } else {
+            doReturn(null).when(mMockedSubscriptionManager).getSubscriptionIds(anyInt());
+        }
         CellBroadcastHandler.putPhoneIdAndSubIdExtra(mMockedContext, intentNoSubId, phoneId);
-        assertTrue(intentNoSubId.getIntExtra(SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX,
-                FAKE_SUBID + 1) == FAKE_SUBID + 1);
-        assertTrue(intentNoSubId.getIntExtra("subscription", FAKE_SUBID + 1)
-                == FAKE_SUBID + 1);
-        assertTrue(intentNoSubId.getIntExtra(SubscriptionManager.EXTRA_SLOT_INDEX, phoneId + 1)
-                == phoneId);
-        assertTrue(intentNoSubId.getIntExtra("phone", phoneId + 1)
-                == phoneId);
+        assertEquals(FAKE_SUBID + 1, intentNoSubId.getIntExtra(
+                SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX, FAKE_SUBID + 1));
+        assertEquals(FAKE_SUBID + 1, intentNoSubId.getIntExtra(
+                "subscription", FAKE_SUBID + 1));
+        assertEquals(phoneId, intentNoSubId.getIntExtra(
+                SubscriptionManager.EXTRA_SLOT_INDEX, phoneId + 1));
+        assertEquals(phoneId, intentNoSubId.getIntExtra(
+                "phone", phoneId + 1));
     }
 
     @Test
@@ -295,29 +349,46 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Test
     @SmallTest
     public void testGetResources() throws Exception {
+        SubscriptionInfo mockSubInfo = mock(SubscriptionInfo.class);
+        doReturn(mockSubInfo).when(mMockedSubscriptionManager).getActiveSubscriptionInfo(anyInt());
+        doReturn(001).when(mockSubInfo).getMcc();
+        doReturn(01).when(mockSubInfo).getMnc();
+
         // verify not to call SubscriptionManager#getResourcesForSubId for DEFAULT ID
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(1)).getResources();
 
         // verify not to call SubscriptionManager#getResourcesForSubId for INVALID ID
         mCellBroadcastHandler.getResources(SubscriptionManager.INVALID_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(2)).getResources();
 
         // verify to call SubscriptionManager#getResourcesForSubId for normal sub id
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(1)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
 
         // verify to call SubscriptionManager#getResourcesForSubId again for the same sub
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(2)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
+    }
+
+    @Test
+    @SmallTest
+    public void testConstructorRegistersReceiverWithExpectedFlag() {
+        int expectedFlag = SdkLevel.isAtLeastT() ? Context.RECEIVER_EXPORTED : 0;
+        clearInvocations(mMockedContext);
+
+        CellBroadcastHandler cellBroadcastHandler = new CellBroadcastHandler(
+                "CellBroadcastHandlerUT", mMockedContext, mTestbleLooper.getLooper(),
+                mSendMessageFactory, mHandlerHelper);
+
+        verify(mMockedContext, times(1)).registerReceiver(any(), any(), eq(expectedFlag));
+        cellBroadcastHandler.cleanup();
     }
 
     /**
