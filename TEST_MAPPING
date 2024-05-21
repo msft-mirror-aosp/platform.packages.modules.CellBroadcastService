@@ -1,4 +1,14 @@
 {
+ "cellbroadcast-mainline-presubmit": [
+    {
+      "name": "CellBroadcastServiceTests",
+      "options": [
+        {
+          "include-annotation": "org.junit.Test"
+        }
+      ]
+    }
+  ],
  "mainline-presubmit": [
     {
       "name": "CellBroadcastServiceTests[com.google.android.cellbroadcast.apex]",
