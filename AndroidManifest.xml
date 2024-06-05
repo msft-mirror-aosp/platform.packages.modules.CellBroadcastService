@@ -16,6 +16,10 @@
  * limitations under the License.
  */
 -->
+
+<!-- CellBroadcast has never changed versionCode since CellBroadcast was included R-OS.
+In case of changing the version code, should notify the backup and restore team.
+pixel-onboarding-eng@ and aob-platform-Op@. Please refer b/317302212 for details -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         android:sharedUserId="android.uid.networkstack"
         android:versionCode="300000000"

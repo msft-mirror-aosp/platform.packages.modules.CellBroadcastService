@@ -16,6 +16,9 @@
 
 package com.android.cellbroadcastservice.tests;
 
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE;
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -35,7 +38,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.IIntentSender;
 import android.content.Intent;
-import android.content.res.Resources;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
@@ -48,18 +51,18 @@ import android.telephony.CbGeoUtils;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
+import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.text.format.DateUtils;
-import android.util.Pair;
 import android.util.Singleton;
 
 import androidx.annotation.NonNull;
+import androidx.test.filters.SmallTest;
 
 import com.android.cellbroadcastservice.CbSendMessageCalculator;
 import com.android.cellbroadcastservice.CellBroadcastHandler;
@@ -79,7 +82,6 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RunWith(AndroidTestingRunner.class)
 @TestableLooper.RunWithLooper
@@ -88,9 +90,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private CellBroadcastHandler mCellBroadcastHandler;
 
     private TestableLooper mTestbleLooper;
-
-    @Mock
-    private Map<Pair<Context, Integer>, Resources> mMockedResourcesCache;
 
     private CbSendMessageCalculatorFactoryFacade mSendMessageFactory;
 
@@ -113,7 +112,20 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Mock
     private ISub mISub;
 
+    private Configuration mConfiguration;
+
     private class CellBroadcastContentProvider extends MockContentProvider {
+        String mPlmn = "311480";
+        int mGeographicalScope = 0;
+
+        public void setPlmn(String plmn) {
+            mPlmn = plmn;
+        }
+
+        public void setGeographicalScope(int geographicalScope) {
+            mGeographicalScope = geographicalScope;
+        }
+
         @Override
         public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
                 String sortOrder) {
@@ -125,8 +137,8 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         1,              // _ID
                         0,              // SLOT_INDEX
                         1,              // SUBSCRIPTION_ID
-                        0,              // GEOGRAPHICAL_SCOPE
-                        "311480",       // PLMN
+                        mGeographicalScope, // GEOGRAPHICAL_SCOPE
+                        mPlmn,          // PLMN
                         0,              // LAC
                         0,              // CID
                         1234,           // SERIAL_NUMBER
@@ -151,7 +163,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         "",             // GEOMETRIES
                         5,              // MAXIMUM_WAIT_TIME
                 });
-
                 return mc;
             }
 
@@ -163,6 +174,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             return 1;
         }
     }
+
 
     @Before
     public void setUp() throws Exception {
@@ -185,10 +197,11 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         ((MockContentResolver) mMockedContext.getContentResolver()).addProvider(
                 Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
                 new CellBroadcastContentProvider());
-        doReturn(true).when(mMockedResourcesCache).containsKey(any());
-        doReturn(mMockedResources).when(mMockedResourcesCache).get(any());
-        replaceInstance(SubscriptionManager.class, "sResourcesCache", mCellBroadcastHandler,
-                mMockedResourcesCache);
+        doReturn("com.android.cellbroadcastservice").when(mMockedContext).getPackageName();
+        doReturn(mMockedContext).when(mMockedContext).createConfigurationContext(any());
+        doReturn(mMockedResources).when(mMockedContext).getResources();
+        mConfiguration = new Configuration();
+        doReturn(mConfiguration).when(mMockedResources).getConfiguration();
         putResources(com.android.cellbroadcastservice.R.integer.message_expiration_time,
                 (int) DateUtils.DAY_IN_MILLIS);
         putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_service_category,
@@ -349,9 +362,49 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Test
     @SmallTest
+    public void testEmptyPlmnDuplicateDetection() throws Exception {
+
+        // case (GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE + plmn exist)
+        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message1", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn exist)
+        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "")
+        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg3));
+
+        CellBroadcastContentProvider CBContentProviderForEmptyPlmn =
+                new CellBroadcastContentProvider();
+        CBContentProviderForEmptyPlmn.setPlmn("");
+        CBContentProviderForEmptyPlmn.setGeographicalScope(GEOGRAPHICAL_SCOPE_PLMN_WIDE);
+        mMockedContentResolver.addProvider(Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
+                CBContentProviderForEmptyPlmn);
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "") with already empty plmn message saved
+        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message3", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
+    }
+
+    @Test
+    @SmallTest
     public void testCrossSimDuplicateDetection() throws Exception {
         int differentSlotID = 1;
-        int differentSubID = 2;
+        int differentSubID = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
 
         // enable cross_sim_duplicate_detection
         putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
@@ -388,29 +441,32 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Test
     @SmallTest
     public void testGetResources() throws Exception {
+        SubscriptionInfo mockSubInfo = mock(SubscriptionInfo.class);
+        doReturn(mockSubInfo).when(mMockedSubscriptionManager).getActiveSubscriptionInfo(anyInt());
+        doReturn(001).when(mockSubInfo).getMcc();
+        doReturn(01).when(mockSubInfo).getMnc();
+
         // verify not to call SubscriptionManager#getResourcesForSubId for DEFAULT ID
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(1)).getResources();
 
         // verify not to call SubscriptionManager#getResourcesForSubId for INVALID ID
         mCellBroadcastHandler.getResources(SubscriptionManager.INVALID_SUBSCRIPTION_ID);
 
-        verify(mMockedResourcesCache, never()).containsKey(any());
+        verify(mMockedContext, never()).createConfigurationContext(any());
         verify(mMockedContext, times(2)).getResources();
 
         // verify to call SubscriptionManager#getResourcesForSubId for normal sub id
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(1)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
 
         // verify to call SubscriptionManager#getResourcesForSubId again for the same sub
         mCellBroadcastHandler.getResources(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
-        verify(mMockedResourcesCache, times(2)).containsKey(any());
-        verify(mMockedContext, times(2)).getResources();
+        verify(mMockedContext, times(1)).createConfigurationContext(any());
     }
 
     @Test
