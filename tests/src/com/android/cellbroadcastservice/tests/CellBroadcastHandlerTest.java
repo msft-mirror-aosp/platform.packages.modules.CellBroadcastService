@@ -53,13 +53,13 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.testing.AndroidTestingRunner;
 import android.testing.TestableLooper;
 import android.text.format.DateUtils;
 import android.util.Singleton;
 
 import androidx.annotation.NonNull;
+import androidx.test.filters.SmallTest;
 
 import com.android.cellbroadcastservice.CbSendMessageCalculator;
 import com.android.cellbroadcastservice.CellBroadcastHandler;
@@ -344,6 +344,44 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             // message should be detected as duplicate again
             assertTrue(mCellBroadcastHandler.isDuplicate(msg));
         }
+    }
+
+    @Test
+    @SmallTest
+    public void testCrossSimDuplicateDetection() throws Exception {
+        int differentSlotID = 1;
+        int differentSubID = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+
+        // enable cross_sim_duplicate_detection
+        putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
+
+        // The message with different subId will be detected as duplication.
+        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message", 3,
+                null, null, 0, differentSubID);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
+
+        // The message with different body won't be detected as a duplication.
+        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Different Message", 3,
+                null, null, 0, differentSubID);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
+
+        // The message with different slotId will be detected as a duplication.
+        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message", 3,
+                null, null, differentSlotID, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg3));
+
+        // The message with different slotId and body will be detected as a duplication.
+        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Different Message", 3,
+                null, null, differentSlotID, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
     }
 
     @Test
