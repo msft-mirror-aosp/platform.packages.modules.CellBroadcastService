@@ -85,7 +85,7 @@ public class CellBroadcastServiceTestBase extends TestCase {
     @Mock
     protected SharedPreferences.Editor mEditor;
 
-    private final MockContentResolver mMockedContentResolver = new MockContentResolver();
+    protected final MockContentResolver mMockedContentResolver = new MockContentResolver();
 
     private final Multimap<String, BroadcastReceiver> mBroadcastReceiversByAction =
             ArrayListMultimap.create();
