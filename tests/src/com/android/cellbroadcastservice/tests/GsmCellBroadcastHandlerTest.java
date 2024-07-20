@@ -76,7 +76,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Spy;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -92,6 +94,9 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Mock
     private Map<Integer, Resources> mMockedResourcesCache;
+
+    @Spy
+    private HashMap<GsmCellBroadcastHandler.SmsCbConcatInfo, byte[][]> mMockedSmsCbPageMap;
 
     @Mock
     private SubscriptionInfo mSubInfo;
@@ -581,6 +586,44 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 mTestableLooper.getLooper(), mSendMessageFactory, mHandlerHelper, mMockedResources,
                 SubscriptionManager.INVALID_SUBSCRIPTION_ID);
         verify(mMockedContext, never()).getResources();
+    }
+
+    @Test
+    @SmallTest
+    public void testConcatMessage() throws Exception {
+        doReturn("111222").when(mMockedTelephonyManager).getNetworkOperator();
+        replaceInstance(GsmCellBroadcastHandler.class, "mSmsCbPageMap",
+                mGsmCellBroadcastHandler, mMockedSmsCbPageMap);
+
+        // serial_number : 0x1123, message_id : 0x1112, page1/total2
+        final byte[] pdu1 = hexStringToBytes("112311120112C8329BFD06");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu1);
+        mTestableLooper.processAllMessages();
+        assertEquals(1, mMockedSmsCbPageMap.size());
+
+        // serial_number : 0x1123, message_id : 0x1113, page1/total2
+        final byte[] pdu2 = hexStringToBytes("112311130112C7F7FBCC2E03");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu2);
+        mTestableLooper.processAllMessages();
+        assertEquals(2, mMockedSmsCbPageMap.size());
+
+        // serial_number : 0x1123, message_id : 0x1112, page2/total2
+        final byte[] pdu3 = hexStringToBytes("112311130122C7F7FBCC2E03");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu3);
+        mTestableLooper.processAllMessages();
+        assertEquals(1, mMockedSmsCbPageMap.size());
+
+        mGsmCellBroadcastHandler.sendMessage(/*WakeLockStateMachine.EVENT_BROADCAST_COMPLETE*/ 2);
+        mTestableLooper.processAllMessages();
+
+        // serial_number : 0x1123, message_id : 0x1113, page2/total2
+        final byte[] pdu4 = hexStringToBytes("112311120122C8329BFD06");
+        mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu4);
+        mTestableLooper.processAllMessages();
+        assertEquals(0, mMockedSmsCbPageMap.size());
+
+        mGsmCellBroadcastHandler.sendMessage(/*WakeLockStateMachine.EVENT_BROADCAST_COMPLETE*/ 2);
+        mTestableLooper.processAllMessages();
     }
 
     @Test

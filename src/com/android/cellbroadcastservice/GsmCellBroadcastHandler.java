@@ -791,7 +791,9 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
 
         @Override
         public int hashCode() {
-            return (mHeader.getSerialNumber() * 31) + mLocation.hashCode();
+            return Objects.hash(mHeader.getSerialNumber(),
+                    mHeader.getServiceCategory(),
+                    mLocation);
         }
 
         @Override
@@ -803,6 +805,7 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
                 // geographical scope and update number), and both pages belong to the same
                 // location (PLMN, plus LAC and CID if these are part of the geographical scope).
                 return mHeader.getSerialNumber() == other.mHeader.getSerialNumber()
+                        && mHeader.getServiceCategory() == other.mHeader.getServiceCategory()
                         && mLocation.equals(other.mLocation);
             }
 
