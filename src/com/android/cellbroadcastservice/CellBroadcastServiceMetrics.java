@@ -256,16 +256,15 @@ public class CellBroadcastServiceMetrics {
      *
      * @param type     : radio type
      * @param source   : layer of reported message
-     * @param serialNo : unique identifier of message
+     * @param serialNo : set 0 as deprecated
      * @param msgId    : service_category of message
      */
     public void logMessageReported(Context context, int type, int source, int serialNo, int msgId) {
         if (VDBG) {
-            Log.d(TAG,
-                    "logMessageReported : " + type + " " + source + " " + serialNo + " " + msgId);
+            Log.d(TAG, "logMessageReported : " + type + " " + source + " " + 0 + " " + msgId);
         }
         CellBroadcastModuleStatsLog.write(CellBroadcastModuleStatsLog.CB_MESSAGE_REPORTED, type,
-                source, serialNo, msgId);
+                source, 0, msgId);
     }
 
     /**
@@ -291,11 +290,11 @@ public class CellBroadcastServiceMetrics {
     public void logMessageFiltered(int filterType, SmsCbMessage msg) {
         int ratType = msg.getMessageFormat() == MESSAGE_FORMAT_3GPP ? FILTER_GSM : FILTER_CDMA;
         if (VDBG) {
-            Log.d(TAG, "logMessageFiltered : " + ratType + " " + filterType + " "
-                    + msg.getSerialNumber() + " " + msg.getServiceCategory());
+            Log.d(TAG, "logMessageFiltered : " + ratType + " " + filterType + " " + 0 + " "
+                    + msg.getServiceCategory());
         }
         CellBroadcastModuleStatsLog.write(CellBroadcastModuleStatsLog.CB_MESSAGE_FILTERED,
-                ratType, filterType, msg.getSerialNumber(), msg.getServiceCategory());
+                ratType, filterType, 0, msg.getServiceCategory());
     }
 
     /**
