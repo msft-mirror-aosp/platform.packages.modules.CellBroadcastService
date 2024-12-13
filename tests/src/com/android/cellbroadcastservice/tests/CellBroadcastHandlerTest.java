@@ -400,42 +400,56 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
     }
 
+    private void verifyCBMessageForCrossSimDuplication(
+            boolean isSameSubId, boolean isSameSlot, boolean isSameSerial, boolean isSameUserdata,
+            boolean duplication) {
+
+        int subId = isSameSubId ? 1 : SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+        int slotIndex = isSameSlot ? 0 : 1;
+        int serialnumber = isSameSerial ? 1234 : 5678;
+        String userData = isSameUserdata ? "Test Message" : "Different Message";
+
+        SmsCbMessage cbMessage = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, serialnumber, new SmsCbLocation("311480", 0, 0),
+                4370, "en", userData, 3,
+                null, null, slotIndex, subId);
+
+        assertEquals(duplication, mCellBroadcastHandler.isDuplicate(cbMessage));
+    }
+
     @Test
     @SmallTest
     public void testCrossSimDuplicateDetection() throws Exception {
-        int differentSlotID = 1;
-        int differentSubID = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
-
         // enable cross_sim_duplicate_detection
         putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
 
-        // The message with different subId will be detected as duplication.
-        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Test Message", 3,
-                null, null, 0, differentSubID);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
-
-        // The message with different body won't be detected as a duplication.
-        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Different Message", 3,
-                null, null, 0, differentSubID);
-        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
-
-        // The message with different slotId will be detected as a duplication.
-        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Test Message", 3,
-                null, null, differentSlotID, 1);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg3));
-
-        // The message with different slotId and body will be detected as a duplication.
-        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Different Message", 3,
-                null, null, differentSlotID, 1);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
+        List<List<Boolean>> combinations = List.of(
+                List.of(true, true, true, true, true),
+                List.of(true, true, true, false, true),
+                List.of(true, true, false, true, false),
+                List.of(true, true, false, false, false),
+                List.of(true, false, true, true, true),
+                List.of(true, false, true, false, true),
+                List.of(true, false, false, true, false),
+                List.of(true, false, false, false, false),
+                List.of(false, true, true, true, true),
+                List.of(false, true, true, false, true),
+                List.of(false, true, false, true, false),
+                List.of(false, true, false, false, false),
+                List.of(false, false, true, true, true),
+                List.of(false, false, true, false, false),
+                List.of(false, false, false, true, true),
+                List.of(false, false, false, false, false)
+        );
+        for (List<Boolean> combinationCase : combinations) {
+            verifyCBMessageForCrossSimDuplication(
+                    combinationCase.get(0),  // isSameSubId
+                    combinationCase.get(1),  // isSameSlot
+                    combinationCase.get(2),  // isSameSerial
+                    combinationCase.get(3),  // isSameUserdata
+                    combinationCase.get(4)   // duplication
+            );
+        }
     }
 
     @Test
