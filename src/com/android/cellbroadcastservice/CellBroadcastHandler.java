@@ -498,8 +498,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         // to the PLMN in which it is broadcast, so any change of PLMN (including a change to
         // another PLMN which is an ePLMN) means the CBS message is "new")
         if (message.getGeographicalScope() == SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE) {
-            return !TextUtils.isEmpty(message.getLocation().getPlmn())
-                    && message.getLocation().getPlmn().equals(
+            return TextUtils.equals(message.getLocation().getPlmn(),
                     messageToCheck.getLocation().getPlmn());
         }
 
@@ -564,9 +563,10 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
             // If messages are from different slots, then we only compare the message body.
             if (VDBG) log("Checking the message " + messageToCheck);
             if (crossSimDuplicateDetection
-                    && message.getSubscriptionId() != messageToCheck.getSubscriptionId()) {
+                    && message.getSubscriptionId() != messageToCheck.getSubscriptionId()
+                    && message.getSlotIndex() != messageToCheck.getSlotIndex()) {
                 if (TextUtils.equals(message.getMessageBody(), messageToCheck.getMessageBody())) {
-                    log("Duplicate message detected from different slot. " + message);
+                    log("Duplicate message detected from different slot and subId " + message);
                     return true;
                 }
                 if (VDBG) log("Not from the same slot.");
@@ -796,7 +796,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                         additionalIntent.setPackage(pkg);
                         mLocalLog.log("intent=" + intent + " package=" + pkg);
                         mContext.createContextAsUser(UserHandle.ALL, 0).sendOrderedBroadcast(
-                                intent, null, (Bundle) null, null, getHandler(),
+                                additionalIntent, null, (Bundle) null, null, getHandler(),
                                 Activity.RESULT_OK, null, null);
 
                     }

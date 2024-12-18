@@ -16,6 +16,9 @@
 
 package com.android.cellbroadcastservice.tests;
 
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE;
+import static android.telephony.SmsCbMessage.GEOGRAPHICAL_SCOPE_PLMN_WIDE;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -112,6 +115,17 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     private Configuration mConfiguration;
 
     private class CellBroadcastContentProvider extends MockContentProvider {
+        String mPlmn = "311480";
+        int mGeographicalScope = 0;
+
+        public void setPlmn(String plmn) {
+            mPlmn = plmn;
+        }
+
+        public void setGeographicalScope(int geographicalScope) {
+            mGeographicalScope = geographicalScope;
+        }
+
         @Override
         public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
                 String sortOrder) {
@@ -123,8 +137,8 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         1,              // _ID
                         0,              // SLOT_INDEX
                         1,              // SUBSCRIPTION_ID
-                        0,              // GEOGRAPHICAL_SCOPE
-                        "311480",       // PLMN
+                        mGeographicalScope, // GEOGRAPHICAL_SCOPE
+                        mPlmn,          // PLMN
                         0,              // LAC
                         0,              // CID
                         1234,           // SERIAL_NUMBER
@@ -149,7 +163,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                         "",             // GEOMETRIES
                         5,              // MAXIMUM_WAIT_TIME
                 });
-
                 return mc;
             }
 
@@ -161,6 +174,7 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
             return 1;
         }
     }
+
 
     @Before
     public void setUp() throws Exception {
@@ -348,40 +362,94 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Test
     @SmallTest
-    public void testCrossSimDuplicateDetection() throws Exception {
-        int differentSlotID = 1;
-        int differentSubID = SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+    public void testEmptyPlmnDuplicateDetection() throws Exception {
 
+        // case (GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE + plmn exist)
+        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_CELL_WIDE_IMMEDIATE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message1", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn exist)
+        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("311480", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "")
+        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message2", 3,
+                null, null, 0, 1);
+        assertFalse(mCellBroadcastHandler.isDuplicate(msg3));
+
+        CellBroadcastContentProvider CBContentProviderForEmptyPlmn =
+                new CellBroadcastContentProvider();
+        CBContentProviderForEmptyPlmn.setPlmn("");
+        CBContentProviderForEmptyPlmn.setGeographicalScope(GEOGRAPHICAL_SCOPE_PLMN_WIDE);
+        mMockedContentResolver.addProvider(Telephony.CellBroadcasts.CONTENT_URI.getAuthority(),
+                CBContentProviderForEmptyPlmn);
+
+        // case (GEOGRAPHICAL_SCOPE_PLMN_WIDE + plmn "") with already empty plmn message saved
+        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                GEOGRAPHICAL_SCOPE_PLMN_WIDE, 1234, new SmsCbLocation("", 0, 0),
+                4370, "en", "Test Message3", 3,
+                null, null, 0, 1);
+        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
+    }
+
+    private void verifyCBMessageForCrossSimDuplication(
+            boolean isSameSubId, boolean isSameSlot, boolean isSameSerial, boolean isSameUserdata,
+            boolean duplication) {
+
+        int subId = isSameSubId ? 1 : SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+        int slotIndex = isSameSlot ? 0 : 1;
+        int serialnumber = isSameSerial ? 1234 : 5678;
+        String userData = isSameUserdata ? "Test Message" : "Different Message";
+
+        SmsCbMessage cbMessage = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
+                0, serialnumber, new SmsCbLocation("311480", 0, 0),
+                4370, "en", userData, 3,
+                null, null, slotIndex, subId);
+
+        assertEquals(duplication, mCellBroadcastHandler.isDuplicate(cbMessage));
+    }
+
+    @Test
+    @SmallTest
+    public void testCrossSimDuplicateDetection() throws Exception {
         // enable cross_sim_duplicate_detection
         putResources(com.android.cellbroadcastservice.R.bool.cross_sim_duplicate_detection, true);
 
-        // The message with different subId will be detected as duplication.
-        SmsCbMessage msg1 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Test Message", 3,
-                null, null, 0, differentSubID);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg1));
-
-        // The message with different body won't be detected as a duplication.
-        SmsCbMessage msg2 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Different Message", 3,
-                null, null, 0, differentSubID);
-        assertFalse(mCellBroadcastHandler.isDuplicate(msg2));
-
-        // The message with different slotId will be detected as a duplication.
-        SmsCbMessage msg3 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Test Message", 3,
-                null, null, differentSlotID, 1);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg3));
-
-        // The message with different slotId and body will be detected as a duplication.
-        SmsCbMessage msg4 = new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
-                0, 1234, new SmsCbLocation("311480", 0, 0),
-                4370, "en", "Different Message", 3,
-                null, null, differentSlotID, 1);
-        assertTrue(mCellBroadcastHandler.isDuplicate(msg4));
+        List<List<Boolean>> combinations = List.of(
+                List.of(true, true, true, true, true),
+                List.of(true, true, true, false, true),
+                List.of(true, true, false, true, false),
+                List.of(true, true, false, false, false),
+                List.of(true, false, true, true, true),
+                List.of(true, false, true, false, true),
+                List.of(true, false, false, true, false),
+                List.of(true, false, false, false, false),
+                List.of(false, true, true, true, true),
+                List.of(false, true, true, false, true),
+                List.of(false, true, false, true, false),
+                List.of(false, true, false, false, false),
+                List.of(false, false, true, true, true),
+                List.of(false, false, true, false, false),
+                List.of(false, false, false, true, true),
+                List.of(false, false, false, false, false)
+        );
+        for (List<Boolean> combinationCase : combinations) {
+            verifyCBMessageForCrossSimDuplication(
+                    combinationCase.get(0),  // isSameSubId
+                    combinationCase.get(1),  // isSameSlot
+                    combinationCase.get(2),  // isSameSerial
+                    combinationCase.get(3),  // isSameUserdata
+                    combinationCase.get(4)   // duplication
+            );
+        }
     }
 
     @Test
