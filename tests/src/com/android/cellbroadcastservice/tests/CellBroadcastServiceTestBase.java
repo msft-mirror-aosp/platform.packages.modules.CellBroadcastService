@@ -24,6 +24,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -140,6 +141,10 @@ public class CellBroadcastServiceTestBase extends TestCase {
                 .getSystemServiceName(TelephonyManager.class);
         doReturn(mMockedSubscriptionManager).when(mMockedContext)
                 .getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        when(mMockedContext.getSystemService(TelephonyManager.class))
+                .thenReturn(mMockedTelephonyManager);
+        when(mMockedContext.getSystemService(SubscriptionManager.class))
+                .thenReturn(mMockedSubscriptionManager);
         doReturn(Context.TELEPHONY_SUBSCRIPTION_SERVICE).when(mMockedContext).getSystemServiceName(
                 SubscriptionManager.class);
         doReturn(mMockedLocationManager).when(mMockedContext)

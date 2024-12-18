@@ -16,6 +16,8 @@
 
 package com.android.cellbroadcastservice.tests;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
+
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,6 +26,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -76,7 +79,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Spy;
+import org.mockito.MockitoSession;
+import org.mockito.quality.Strictness;
 
 import java.util.HashMap;
 import java.util.List;
@@ -94,9 +98,6 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Mock
     private Map<Integer, Resources> mMockedResourcesCache;
-
-    @Spy
-    private HashMap<GsmCellBroadcastHandler.SmsCbConcatInfo, byte[][]> mMockedSmsCbPageMap;
 
     @Mock
     private SubscriptionInfo mSubInfo;
@@ -306,6 +307,8 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 any(), any(), anyInt(), any(), any());
     }
 
+    private MockitoSession mMockitoSession;
+
     @Test
     @SmallTest
     public void testSmsCbLocation() {
@@ -343,6 +346,88 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         assertEquals(fakePlmn, location.getPlmn());
         assertEquals(fakeTac, location.getLac());
         assertEquals(fakeCid, location.getCid());
+    }
+
+    @Test
+    @SmallTest
+    public void testSmsCbLocationInMultiSim() {
+        try {
+            mMockitoSession =
+                    mockitoSession()
+                            .mockStatic(SubscriptionManager.class)
+                            .strictness(Strictness.LENIENT)
+                            .startMocking();
+            lenient().when(SubscriptionManager.isValidSubscriptionId(anyInt()))
+                    .thenReturn(true);
+            lenient().when(SubscriptionManager.getResourcesForSubId(any(), anyInt()))
+                    .thenReturn(mMockedResources);
+            int slotIndex = 2;
+            int subId = 2;
+            if (SdkLevel.isAtLeastU()) {
+                lenient().when(SubscriptionManager.getSubscriptionId(slotIndex))
+                    .thenReturn(subId);
+            }
+            doReturn(new int[]{subId}).when(mMockedSubscriptionManager)
+                    .getSubscriptionIds(slotIndex);
+
+            final byte[] pdu = hexStringToBytes(
+                    "01111B40110101C366701A093685456924080000000000000000000000000000000000000"
+                            + "0000000000000000000000000000000000000000000000000000000000"
+                            + "000000000000000000000000000000000000000000000000B");
+
+            final String plmnSim1 = "310999";
+            final int tacSim1 = 1234;
+            final int cidSim1 = 5678;
+
+            final String plmnSim2 = "310450";
+            final int tacSim2 = 4321;
+            final int cidSim2 = 8765;
+
+            TelephonyManager tm2 = mock(TelephonyManager.class);
+            doReturn(tm2).when(mMockedTelephonyManager)
+                    .createForSubscriptionId(subId);
+            doReturn(plmnSim1).when(mMockedTelephonyManager).getNetworkOperator();
+            doReturn(plmnSim2).when(tm2).getNetworkOperator();
+            ServiceState ss = mock(ServiceState.class);
+            ServiceState ssSim2 = mock(ServiceState.class);
+            doReturn(ss).when(mMockedTelephonyManager).getServiceState();
+            doReturn(ssSim2).when(tm2).getServiceState();
+            NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
+                    .setDomain(NetworkRegistrationInfo.DOMAIN_CS)
+                    .setAccessNetworkTechnology(TelephonyManager.NETWORK_TYPE_LTE)
+                    .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                    .setRegistrationState(NetworkRegistrationInfo.REGISTRATION_STATE_HOME)
+                    .setCellIdentity(new CellIdentityLte(0, 0, cidSim1, 0, tacSim1))
+                    .build();
+            NetworkRegistrationInfo nri2 = new NetworkRegistrationInfo.Builder()
+                    .setDomain(NetworkRegistrationInfo.DOMAIN_CS)
+                    .setAccessNetworkTechnology(TelephonyManager.NETWORK_TYPE_LTE)
+                    .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                    .setRegistrationState(NetworkRegistrationInfo.REGISTRATION_STATE_HOME)
+                    .setCellIdentity(new CellIdentityLte(0, 0, cidSim2,
+                            0, tacSim2))
+                    .build();
+            doReturn(nri).when(ss).getNetworkRegistrationInfo(anyInt(), anyInt());
+            doReturn(nri2).when(ssSim2).getNetworkRegistrationInfo(anyInt(), anyInt());
+
+            mGsmCellBroadcastHandler.onGsmCellBroadcastSms(slotIndex, pdu);
+            mTestableLooper.processAllMessages();
+
+            ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+            verify(mMockedContext).sendOrderedBroadcast(intentCaptor.capture(), any(),
+                    (Bundle) any(), any(), any(), anyInt(), any(), any());
+            Intent intent = intentCaptor.getValue();
+            assertEquals(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED,
+                    intent.getAction());
+            SmsCbMessage msg = intent.getParcelableExtra("message");
+
+            SmsCbLocation location = msg.getLocation();
+            assertEquals(plmnSim2, location.getPlmn());
+            assertEquals(tacSim2, location.getLac());
+            assertEquals(cidSim2, location.getCid());
+        } finally {
+            mMockitoSession.finishMocking();
+        }
     }
 
     @Test
@@ -591,27 +676,29 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Test
     @SmallTest
     public void testConcatMessage() throws Exception {
+        HashMap<GsmCellBroadcastHandler.SmsCbConcatInfo, byte[][]>  mockedSmsCbPageMap =
+                new HashMap<>(4);
         doReturn("111222").when(mMockedTelephonyManager).getNetworkOperator();
         replaceInstance(GsmCellBroadcastHandler.class, "mSmsCbPageMap",
-                mGsmCellBroadcastHandler, mMockedSmsCbPageMap);
+                mGsmCellBroadcastHandler, mockedSmsCbPageMap);
 
         // serial_number : 0x1123, message_id : 0x1112, page1/total2
         final byte[] pdu1 = hexStringToBytes("112311120112C8329BFD06");
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu1);
         mTestableLooper.processAllMessages();
-        assertEquals(1, mMockedSmsCbPageMap.size());
+        assertEquals(1, mockedSmsCbPageMap.size());
 
         // serial_number : 0x1123, message_id : 0x1113, page1/total2
         final byte[] pdu2 = hexStringToBytes("112311130112C7F7FBCC2E03");
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu2);
         mTestableLooper.processAllMessages();
-        assertEquals(2, mMockedSmsCbPageMap.size());
+        assertEquals(2, mockedSmsCbPageMap.size());
 
         // serial_number : 0x1123, message_id : 0x1112, page2/total2
         final byte[] pdu3 = hexStringToBytes("112311130122C7F7FBCC2E03");
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu3);
         mTestableLooper.processAllMessages();
-        assertEquals(1, mMockedSmsCbPageMap.size());
+        assertEquals(1, mockedSmsCbPageMap.size());
 
         mGsmCellBroadcastHandler.sendMessage(/*WakeLockStateMachine.EVENT_BROADCAST_COMPLETE*/ 2);
         mTestableLooper.processAllMessages();
@@ -620,7 +707,7 @@ public class GsmCellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         final byte[] pdu4 = hexStringToBytes("112311120122C8329BFD06");
         mGsmCellBroadcastHandler.onGsmCellBroadcastSms(0, pdu4);
         mTestableLooper.processAllMessages();
-        assertEquals(0, mMockedSmsCbPageMap.size());
+        assertEquals(0, mockedSmsCbPageMap.size());
 
         mGsmCellBroadcastHandler.sendMessage(/*WakeLockStateMachine.EVENT_BROADCAST_COMPLETE*/ 2);
         mTestableLooper.processAllMessages();

@@ -6,9 +6,10 @@ package {
 android_test {
     name: "CellBroadcastServiceTests",
     static_libs: [
-        "mockito-target",
-        "compatibility-device-util-axt",
+        "frameworks-base-testutils",
         "androidx.test.rules",
+        "mockito-target-extended-minus-junit4",
+        "modules-utils-build",
         "modules-utils-handlerexecutor",
         "modules-utils-locallog",
         "modules-utils-preconditions",
@@ -26,6 +27,10 @@ android_test {
     srcs: [
         "src/**/*.java",
         ":cellbroadcast-shared-srcs",
+    ],
+    jni_libs: [
+        "libdexmakerjvmtiagent",
+        "libstaticjvmtiagent",
     ],
     platform_apis: true,
     test_suites: [
