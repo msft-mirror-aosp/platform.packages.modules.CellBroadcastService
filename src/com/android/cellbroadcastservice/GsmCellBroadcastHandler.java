@@ -580,8 +580,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
      * network.
      */
     private @Nullable Pair<Integer, Integer> getLacAndCid(int slotIndex) {
-        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
-        tm.createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
+        TelephonyManager tm = mContext.getSystemService(TelephonyManager.class)
+                .createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
 
         ServiceState serviceState = tm.getServiceState();
 
@@ -646,9 +646,8 @@ public class GsmCellBroadcastHandler extends CellBroadcastHandler {
             }
 
             if (VDBG) log("header=" + header);
-            TelephonyManager tm =
-                    (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
-            tm.createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
+            TelephonyManager tm = mContext.getSystemService(TelephonyManager.class)
+                            .createForSubscriptionId(getSubIdForPhone(mContext, slotIndex));
             String plmn = tm.getNetworkOperator();
             int lac = -1;
             int cid = -1;
