@@ -21,9 +21,12 @@ import static com.android.cellbroadcastservice.CellBroadcastMetrics.RPT_CDMA;
 import static com.android.cellbroadcastservice.CellBroadcastMetrics.SRC_CBS;
 
 import android.annotation.NonNull;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.UserHandle;
 import android.provider.Telephony;
 import android.telephony.CellBroadcastService;
 import android.telephony.SmsCbLocation;
@@ -34,6 +37,7 @@ import android.telephony.cdma.CdmaSmsCbProgramData;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.build.SdkLevel;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -55,6 +59,32 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
     private static final char[] HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7',
             '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
+    @VisibleForTesting
+    public static final String ACTION_CELLBROADCAST_USER_SWITCHED =
+            "com.android.cellbroadcastservice.action.USER_SWITCHED";
+
+    @VisibleForTesting
+    public static final String CBR_MODULE_PERMISSION =
+            "com.android.cellbroadcastservice.CELL_BROADCAST_PRIVILEGE_ACCESS";
+
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case Intent.ACTION_USER_SWITCHED:
+                    //  If CBR listens this event directly, this can be missed if that event occurs
+                    //  when the app process is not alive. So, CBS forwards this event to CBR
+                    Intent intentForUserSwitch = new Intent(ACTION_CELLBROADCAST_USER_SWITCHED);
+                    context.sendBroadcastAsUser(intentForUserSwitch, UserHandle.CURRENT,
+                            CBR_MODULE_PERMISSION);
+                    Log.d(TAG, "sent broadcast for user switch");
+                    break;
+                default:
+                    Log.d(TAG, "Unhandled broadcast " + intent.getAction());
+            }
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -64,12 +94,21 @@ public class DefaultCellBroadcastService extends CellBroadcastService {
                 CellBroadcastHandler.makeCellBroadcastHandler(getApplicationContext());
         mCdmaScpHandler =
                 CdmaServiceCategoryProgramHandler.makeScpHandler(getApplicationContext());
+        if (SdkLevel.isAtLeastT()) {
+            // ACTION_USER_SWITCHED is not supported on below T
+            IntentFilter intentFilter = new IntentFilter();
+            intentFilter.addAction(Intent.ACTION_USER_SWITCHED);
+            registerReceiver(mReceiver, intentFilter, RECEIVER_EXPORTED);
+        }
     }
 
     @Override
     public void onDestroy() {
         mGsmCellBroadcastHandler.cleanup();
         mCdmaCellBroadcastHandler.cleanup();
+        if (SdkLevel.isAtLeastT()) {
+            unregisterReceiver(mReceiver);
+        }
         super.onDestroy();
     }
 
