@@ -832,9 +832,11 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * Find the name of the default CBR package. The criteria is that it belongs to CB apex and
      * handles the given intent.
      */
-    static String getDefaultCBRPackageName(Context context, Intent intent) {
+    @VisibleForTesting
+    public static String getDefaultCBRPackageName(Context context, Intent intent) {
         PackageManager packageManager = context.getPackageManager();
-        List<ResolveInfo> cbrPackages = packageManager.queryBroadcastReceivers(intent, 0);
+        List<ResolveInfo> cbrPackages = packageManager.queryBroadcastReceivers(intent,
+                PackageManager.MATCH_SYSTEM_ONLY);
 
         // remove apps that don't live in the CellBroadcast apex
         cbrPackages.removeIf(info ->
