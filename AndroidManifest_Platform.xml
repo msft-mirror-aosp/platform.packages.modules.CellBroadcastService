@@ -25,6 +25,9 @@
     <!-- gives the permission holder access to the CellBroadcastProvider -->
     <permission android:name="com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY"
             android:protectionLevel="signature" />
+    <!-- the permission for cellbroadcast privilege access that is granted to CBR and CBS  -->
+    <permission android:name="com.android.cellbroadcastservice.CELL_BROADCAST_PRIVILEGE_ACCESS"
+        android:protectionLevel="signature" />
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -32,9 +35,12 @@
     <uses-permission android:name="android.permission.READ_CELL_BROADCASTS" />
     <uses-permission android:name="android.permission.MODIFY_PHONE_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.MANAGE_USERS" />
     <uses-permission android:name="com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY" />
+    <uses-permission android:name="com.android.cellbroadcastservice.CELL_BROADCAST_PRIVILEGE_ACCESS" />
 
     <protected-broadcast android:name="android.telephony.action.AREA_INFO_UPDATED" />
+    <protected-broadcast android:name="com.android.cellbroadcastservice.action.USER_SWITCHED" />
 
     <uses-sdk android:minSdkVersion="29"/>
 
