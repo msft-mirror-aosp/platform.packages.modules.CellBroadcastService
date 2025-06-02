@@ -45,6 +45,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.database.Cursor;
+import android.database.SQLException;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -358,13 +359,20 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * Dispatch a Cell Broadcast message to listeners.
      * @param message the Cell Broadcast to broadcast
      */
-    protected void handleBroadcastSms(SmsCbMessage message) {
+    @VisibleForTesting
+    public void handleBroadcastSms(SmsCbMessage message) {
         int slotIndex = message.getSlotIndex();
 
         // TODO: Database inserting can be time consuming, therefore this should be changed to
         // asynchronous.
         ContentValues cv = message.getContentValues();
-        Uri uri = mContext.getContentResolver().insert(CellBroadcasts.CONTENT_URI, cv);
+        Uri uri = null;
+        try {
+            uri = mContext.getContentResolver().insert(CellBroadcasts.CONTENT_URI, cv);
+        } catch (SQLException e) {
+            loge("handleBroadcastSms", e);
+        }
+        final Uri finalUri = uri;
 
         if (message.needGeoFencingCheck()) {
             int maximumWaitingTime = getMaxLocationWaitingTime(message);
@@ -384,7 +392,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                         logd("onLocationUpdate: location=" + location
                                 + ", acc=" + accuracy + ". "  + getMessageString(message));
                     }
-                    performGeoFencing(message, uri, calculator, location, slotIndex,
+                    performGeoFencing(message, finalUri, calculator, location, slotIndex,
                             accuracy);
                 }
 
@@ -396,7 +404,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                 @Override
                 public void onLocationUnavailable() {
                     CellBroadcastHandler.this.onLocationUnavailable(
-                            calculator, message, uri, slotIndex);
+                            calculator, message, finalUri, slotIndex);
                 }
             }, maximumWaitingTime);
         } else {
@@ -405,7 +413,7 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
                         + " needGeoFencing = " + message.needGeoFencingCheck() + ". "
                         + getMessageString(message));
             }
-            broadcastMessage(message, uri, slotIndex);
+            broadcastMessage(message, finalUri, slotIndex);
         }
     }
 
@@ -635,7 +643,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      * @param slotIndex the index of the slot
      * @param accuracy the accuracy of the coordinate given in meters
      */
-    protected void performGeoFencing(SmsCbMessage message, Uri uri,
+    @VisibleForTesting
+    public void performGeoFencing(SmsCbMessage message, Uri uri,
             CbSendMessageCalculator calculator, LatLng location, int slotIndex, float accuracy) {
 
         logd(calculator.toString() + ", current action="
@@ -651,10 +660,13 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         if (uri != null) {
             ContentValues cv = new ContentValues();
             cv.put(CellBroadcasts.LOCATION_CHECK_TIME, System.currentTimeMillis());
-            mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
-                    CellBroadcasts._ID + "=?", new String[] {uri.getLastPathSegment()});
+            try {
+                mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
+                        CellBroadcasts._ID + "=?", new String[]{uri.getLastPathSegment()});
+            } catch (SQLException e) {
+                loge("performGeoFencing", e);
+            }
         }
-
 
         calculator.addCoordinate(location, accuracy);
 
@@ -766,7 +778,8 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
      */
     // TODO(b/193460475): Remove when tooling supports SystemApi to public API.
     @SuppressLint("NewApi")
-    protected void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
+    @VisibleForTesting
+    public void broadcastMessage(@NonNull SmsCbMessage message, @Nullable Uri messageUri,
             int slotIndex) {
         String msg;
         Intent intent;
@@ -836,8 +849,12 @@ public class CellBroadcastHandler extends WakeLockStateMachine {
         if (messageUri != null) {
             ContentValues cv = new ContentValues();
             cv.put(CellBroadcasts.MESSAGE_BROADCASTED, 1);
-            mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
-                    CellBroadcasts._ID + "=?", new String[] {messageUri.getLastPathSegment()});
+            try {
+                mContext.getContentResolver().update(CellBroadcasts.CONTENT_URI, cv,
+                        CellBroadcasts._ID + "=?", new String[]{messageUri.getLastPathSegment()});
+            } catch (SQLException e) {
+                loge("broadcastMessage", e);
+            }
         }
 
         CellBroadcastServiceMetrics.getInstance().logFeatureChangedAsNeeded(mContext);
