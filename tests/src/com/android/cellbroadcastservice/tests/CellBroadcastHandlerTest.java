@@ -42,6 +42,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.MatrixCursor;
+import android.database.SQLException;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -81,6 +82,8 @@ import org.mockito.Mock;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -112,6 +115,12 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
     @Mock
     private ISub mISub;
+    @Mock
+    private Uri mUri;
+    @Mock
+    private CbGeoUtils.LatLng mLocation;
+    @Mock
+    private CbGeoUtils.Polygon mPolygon;
 
     private Configuration mConfiguration;
 
@@ -176,6 +185,17 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         }
     }
 
+    private static class FullStorageProvider extends MockContentProvider {
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            throw new SQLException("SQL exception thrown on insert call due to full storage.");
+        }
+
+        @Override
+        public int update(Uri url, ContentValues values, String where, String[] whereArgs) {
+            throw new SQLException("SQL exception thrown on update call due to full storage.");
+        }
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -505,6 +525,51 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
         CellBroadcastHandler.getDefaultCBRPackageName(mMockedContext, intent);
         verify(mMockedPackageManager, times(1))
                 .queryBroadcastReceivers(intent, PackageManager.MATCH_SYSTEM_ONLY);
+    }
+
+    @Test
+    @SmallTest
+    public void testReceiveAlertWhenStorageFull() {
+        MockContentResolver mockContentResolver = new MockContentResolver();
+        mockContentResolver.addProvider(
+                Telephony.CellBroadcasts.CONTENT_URI.getAuthority(), new FullStorageProvider());
+        doReturn(mockContentResolver).when(mMockedContext).getContentResolver();
+
+        putResources(com.android.cellbroadcastservice.R.array
+                .additional_cell_broadcast_receiver_packages, new String[]{});
+        SmsCbMessage cbMessageEmergency = createSmsCbMessage(100, 4370, "test");
+
+        // Verify that an SQL exception is catched well when inserting the DB after the
+        // handleBroadcastSms call.
+        try {
+            mCellBroadcastHandler.handleBroadcastSms(cbMessageEmergency);
+        } catch (SQLException e) {
+            fail("must handle the SQLException that occurs when the database is full.");
+        }
+
+        // Verify that an SQL exception is catched well when updating the DB after the
+        // broadcastMessage call.
+        try {
+            mCellBroadcastHandler.broadcastMessage(cbMessageEmergency, mUri, 0);
+        } catch (SQLException e) {
+            fail("must handle the SQLException that occurs when the database is full.");
+        }
+
+        // Verify that an SQL exception is catched well when updating the DB after the
+        // performGeoFencing call.
+        try {
+            mCellBroadcastHandler.performGeoFencing(cbMessageEmergency, mUri,
+                    createCalculator(100, mPolygon), mLocation, 0, 0);
+        } catch (SQLException e) {
+            fail("must handle the SQLException that occurs when the database is full.");
+        }
+    }
+
+    private CbSendMessageCalculator createCalculator(float threshold,
+            CbGeoUtils.Geometry geo, CbGeoUtils.Geometry... geos) {
+        List<CbGeoUtils.Geometry> list = new ArrayList<>(Arrays.asList(geos));
+        list.add(geo);
+        return new CbSendMessageCalculator(mMockedContext, list, threshold);
     }
 
     /**
