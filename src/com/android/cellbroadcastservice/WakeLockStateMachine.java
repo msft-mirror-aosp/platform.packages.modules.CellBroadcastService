@@ -130,11 +130,7 @@ public abstract class WakeLockStateMachine extends StateMachine {
             switch (msg.what) {
                 default: {
                     String errorText = "processMessage: unhandled message type " + msg.what;
-                    if (DBG) {
-                        throw new RuntimeException(errorText);
-                    } else {
-                        loge(errorText);
-                    }
+                    loge(errorText);
                     break;
                 }
             }
