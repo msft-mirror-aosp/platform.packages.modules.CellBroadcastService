@@ -38,6 +38,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.IIntentSender;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -481,6 +482,15 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
 
         verify(mMockedContext, times(1)).registerReceiver(any(), any(), eq(expectedFlag));
         cellBroadcastHandler.cleanup();
+    }
+
+    @Test
+    @SmallTest
+    public void testGetDefaultCBRPackageName() {
+        Intent intent = new Intent(Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED);
+        CellBroadcastHandler.getDefaultCBRPackageName(mMockedContext, intent);
+        verify(mMockedPackageManager, times(1))
+                .queryBroadcastReceivers(intent, PackageManager.MATCH_SYSTEM_ONLY);
     }
 
     /**
