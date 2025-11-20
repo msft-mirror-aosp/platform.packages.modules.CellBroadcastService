@@ -182,4 +182,57 @@ public class CellBroadcastMetrics {
     public static final int ERRTYPE_FOUND_MULTIPLECBRPKGS =
             CellBroadcastModuleStatsLog
                     .CELL_BROADCAST_MODULE_ERROR_REPORTED__TYPE__ERROR_FOUND_MULTIPLE_CBR_PKGS;
+
+    public static final int ERRTYPE_TRANSLATION_UNKNOWN =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_UNKNOWN;
+    public static final int ERRTYPE_TRANSLATION_NONE =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_NONE;
+    public static final int ERRTYPE_TRANSLATION_NETWORK_EXCEPTION =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_NETWORK_EXCEPTION;
+
+    public static final int ERRTYPE_TRANSLATION_HTTP_ERROR =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_HTTP_ERROR;
+
+    public static final int ERRTYPE_TRANSLATION_PARSING_FAILED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_PARSING_FAILED;
+
+    public static final int ERRTYPE_TRANSLATION_PACKAGE_NOT_FOUND =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_PACKAGE_NOT_FOUND;
+
+    public static final int ERRTYPE_TRANSLATION_SIGNING_INFO_NULL =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_SIGNING_INFO_NULL;
+    public static final int ERRTYPE_TRANSLATION_NO_SUCH_ALGORITHM =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_NO_SUCH_ALGORITHM;
+
+    public static final int ERRTYPE_TRANSLATION_CANCELLED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_CANCELLED;
+
+    public static final int ERRTYPE_TRANSLATION_STALE_RESULT =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_STALE_RESULT;
+
+    public static final int ERRTYPE_TRANSLATION_ACTIVITY_DESTROYED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_ACTIVITY_DESTROYED;
+
+    public static final int ERRTYPE_TRANSLATION_NOT_APPLICABLE =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_NOT_APPLICABLE;
+
+    public static final int ERRTYPE_TRANSLATION_LANGUAGE_MISSING =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_LANGUAGE_MISSING;
+
+    public static final int ERRTYPE_TRANSLATION_EXCEPTION =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_EXCEPTION;
 }
