@@ -235,4 +235,50 @@ public class CellBroadcastMetrics {
     public static final int ERRTYPE_TRANSLATION_EXCEPTION =
             CellBroadcastModuleStatsLog
                     .CELLBROADCAST_UX_REPORTED__ERROR_TYPE__TRANSLATION_ERROR_EXCEPTION;
+
+    public static final int ERRTYPE_MAP_UNKNOWN =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_UNKNOWN;
+    public static final int ERRTYPE_MAP_NONE =
+            CellBroadcastModuleStatsLog.CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_NONE;
+    public static final int ERRTYPE_MAP_NO_MESSAGE =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_NO_MESSAGE;
+    public static final int ERRTYPE_MAP_NO_GEOMETRY_DATA =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_NO_GEOMETRY_DATA;
+    public static final int ERRTYPE_MAP_INVALID_GEOMETRY_DATA =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_INVALID_GEOMETRY_DATA;
+    public static final int ERRTYPE_MAP_URI_ENCODING_FAILED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_URI_ENCODING_FAILED;
+    public static final int ERRTYPE_MAP_CORE_ACTIVITY_NOT_FOUND =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_CORE_ACTIVITY_NOT_FOUND;
+    public static final int ERRTYPE_MAP_CORE_ACTIVITY_PERMISSION_DENIED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_CORE_ACTIVITY_PERMISSION_DENIED;
+    public static final int ERRTYPE_MAP_MULTIPLE_CORE_ACTIVITIES_FOUND =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_MULTIPLE_CORE_ACTIVITIES_FOUND;
+    public static final int ERRTYPE_MAP_PERMISSION_CHECK_EXCEPTION =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_PERMISSION_CHECK_EXCEPTION;
+    public static final int ERRTYPE_MAP_CORE_ACTIVITY_START_FAILED =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_ERROR_TYPE__MAP_ERROR_CORE_ACTIVITY_START_FAILED;
+
+    public static final int GEO_DATA_TYPE_UNKNOWN =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_GEO_DATA_TYPE__GEO_DATA_TYPE_UNKNOWN;
+    public static final int GEO_DATA_TYPE_POLYGON =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_GEO_DATA_TYPE__GEO_DATA_TYPE_POLYGON;
+    public static final int GEO_DATA_TYPE_CIRCLE =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_GEO_DATA_TYPE__GEO_DATA_TYPE_CIRCLE;
+    public static final int GEO_DATA_TYPE_MULTIPLE =
+            CellBroadcastModuleStatsLog
+                    .CELLBROADCAST_UX_REPORTED__MAP_GEO_DATA_TYPE__GEO_DATA_TYPE_MULTIPLE;
 }
