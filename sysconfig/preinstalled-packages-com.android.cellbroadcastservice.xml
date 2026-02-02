@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <!-- CellBroadcastService  (CellBroadcastServiceModule) -->
+    <install-in-user-type package="com.android.cellbroadcastservice">
+        <install-in user-type="SYSTEM" />
+        <install-in user-type="FULL" />
+    </install-in-user-type>
+</config>

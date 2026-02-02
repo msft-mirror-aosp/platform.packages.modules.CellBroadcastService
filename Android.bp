@@ -44,6 +44,7 @@ android_app {
     manifest: "AndroidManifest.xml",
     apex_available: ["com.android.cellbroadcast"],
     privapp_allowlist: ":privapp_allowlist_com.android.cellbroadcastservice.xml",
+    preinstall_allowlist: ":preinstalled-packages-com.android.cellbroadcastservice.xml",
     updatable: true,
 }
 
@@ -57,6 +58,7 @@ android_app {
     overrides: ["com.android.cellbroadcast"],
     manifest: "AndroidManifest_Platform.xml",
     privapp_allowlist: ":platform_privapp_allowlist_com.android.cellbroadcastservice.xml",
+    preinstall_allowlist: ":preinstalled-packages-com.android.cellbroadcastservice.xml",
 }
 
 genrule {
@@ -104,5 +106,12 @@ filegroup {
     srcs: [
         "src/**/*.java",
         ":statslog-cellbroadcast-module-java-gen",
+    ],
+}
+
+filegroup {
+    name: "preinstalled-packages-com.android.cellbroadcastservice.xml",
+    srcs: [
+        "sysconfig/preinstalled-packages-com.android.cellbroadcastservice.xml",
     ],
 }
