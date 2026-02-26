@@ -14,6 +14,7 @@ java_defaults {
         "framework-annotations-lib",
         "framework-statsd.stubs.module_lib",
         "framework-location.stubs.module_lib",
+        "framework-telecom.stubs.module_lib",
         "unsupportedappusage",
     ],
     sdk_version: "module_current",
@@ -30,6 +31,7 @@ java_defaults {
     optimize: {
         shrink_resources: true,
         proguard_flags_files: ["proguard.flags"],
+        ignore_warnings: false,
     },
     jarjar_rules: "cellbroadcast-jarjar-rules.txt",
     lint: {
