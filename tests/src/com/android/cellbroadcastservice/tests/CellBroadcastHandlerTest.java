@@ -82,6 +82,7 @@ import org.mockito.Mock;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -110,7 +111,6 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
     @Mock
     private IIntentSender mIIntentSender;
 
-    @Mock
     private Singleton<IActivityManager> mIActivityManagerSingleton;
 
     @Mock
@@ -227,9 +227,11 @@ public class CellBroadcastHandlerTest extends CellBroadcastServiceTestBase {
                 (int) DateUtils.DAY_IN_MILLIS);
         putResources(com.android.cellbroadcastservice.R.bool.duplicate_compare_service_category,
                 true);
-
-        replaceInstance(ActivityManager.class, "IActivityManagerSingleton", null,
-                mIActivityManagerSingleton);
+        Field activityManagerSingletonField =
+                ActivityManager.class.getDeclaredField("IActivityManagerSingleton");
+        activityManagerSingletonField.setAccessible(true);
+        mIActivityManagerSingleton =
+                (Singleton<IActivityManager>) activityManagerSingletonField.get(null);
 
         replaceInstance(Singleton.class, "mInstance", mIActivityManagerSingleton,
                 mIActivityManager);
